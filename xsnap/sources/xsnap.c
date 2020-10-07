@@ -131,8 +131,8 @@ int main(int argc, char* argv[])
 	};
 	xsCreation* creation = &_creation;
 	txSnapshot snapshot = {
-		"xsnap",
-		3,
+		"xsnap 1.0.0",
+		11,
 		gxSnapshotCallbacks,
 		mxSnapshotCallbackCount,
 		fxSnapshopRead,

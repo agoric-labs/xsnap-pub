@@ -89,7 +89,7 @@ Generators can be iterated before writing and after reading the snapshot.
 	xsnap before.js -w snapshot.xsm
 	xsnap -r snapshot.xsm after.js
 
-Settled promises can be part of a snapshot. And `then` can be used after reading the snapshot
+Promises can be part of a snapshot. And `then` can be used before writing and after reading the snapshot
 
 ### proxy
 

@@ -70,7 +70,7 @@ Here is the typical runtime sequence:
 
 - create a new machine,
 - run modules or scripts,
-- wait for all promises to be fulfilled or rejected, 
+- wait for all jobs to complete, 
 - write the snapshot.
 
 To write the snapshot, fill the `xsSnapshot` structure and call  `xsWriteSnapshot`.
@@ -79,7 +79,6 @@ To write the snapshot, fill the `xsSnapshot` structure and call  `xsWriteSnapsho
 
 - `xsWriteSnapshot` must be called outside of XS callbacks and outside of `xsBeginHost` `xsEndHost` blocks. 
 - There must be no host instances.
-- All promise instances must be fulfilled or rejected.
 
 `xsWriteSnapshot` returns `1` if successful, otherwise `xsWriteSnapshot` returns `0` and sets the `error` field.
 
