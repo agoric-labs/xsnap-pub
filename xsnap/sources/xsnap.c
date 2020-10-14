@@ -48,6 +48,7 @@ static void fx_evalScript(xsMachine* the);
 static void fx_gc(xsMachine* the);
 static void fx_markTimer(txMachine* the, void* it, txMarkRoot markRoot);
 static void fx_print(xsMachine* the);
+static void fx_setImmediate(txMachine* the);
 static void fx_setInterval(txMachine* the);
 static void fx_setTimeout(txMachine* the);
 static void fx_setTimer(txMachine* the, txNumber interval, txBoolean repeat);
@@ -60,12 +61,13 @@ static void fxRunModuleFile(txMachine* the, txString path);
 static void fxRunProgramFile(txMachine* the, txString path, txUnsigned flags);
 static void fxRunLoop(txMachine* the);
 
-#define mxSnapshotCallbackCount 6
+#define mxSnapshotCallbackCount 7
 txCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_clearTimer,
 	fx_evalScript,
 	fx_gc,
 	fx_print,
+	fx_setImmediate,
 	fx_setInterval,
 	fx_setTimeout,
 };
@@ -126,12 +128,12 @@ int main(int argc, char* argv[])
 		4096*3, 			/* keyCount */
 		1993, 				/* nameModulo */
 		127, 				/* symbolModulo */
-		64 * 1024,			/* parserBufferSize */
+		256 * 1024,			/* parserBufferSize */
 		1993,				/* parserTableModulo */
 	};
 	xsCreation* creation = &_creation;
 	txSnapshot snapshot = {
-		"xsnap 1.0.0",
+		"xsnap 1.0.1",
 		11,
 		gxSnapshotCallbacks,
 		mxSnapshotCallbackCount,
@@ -293,8 +295,15 @@ void fxBuildAgent(xsMachine* the)
 	slot = fxNextHostFunctionProperty(the, slot, fx_print, 1, xsID("print"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_clearTimer, 1, xsID("clearInterval"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_clearTimer, 1, xsID("clearTimeout"), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_setImmediate, 1, xsID("setImmediate"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setInterval, 1, xsID("setInterval"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setTimeout, 1, xsID("setTimeout"), XS_DONT_ENUM_FLAG);
+	
+	mxPush(mxObjectPrototype);
+	fxNextHostFunctionProperty(the, fxLastProperty(the, fxNewObjectInstance(the)), fx_print, 1, xsID("log"), XS_DONT_ENUM_FLAG);
+	slot = fxNextSlotProperty(the, slot, the->stack, xsID("console"), XS_DONT_ENUM_FLAG);
+	mxPop();
+	
 	mxPop();
 }
 
@@ -631,6 +640,11 @@ void fx_print(xsMachine* the)
 		fprintf(stdout, "%s", xsToString(xsArg(i)));
 	}
 	fprintf(stdout, "\n");
+}
+
+void fx_setImmediate(txMachine* the)
+{
+	fx_setTimer(the, 0, 0);
 }
 
 void fx_setInterval(txMachine* the)
