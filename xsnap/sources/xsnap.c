@@ -46,6 +46,7 @@ extern void fx_clearTimer(txMachine* the);
 static void fx_destroyTimer(void* data);
 static void fx_evalScript(xsMachine* the);
 static void fx_gc(xsMachine* the);
+static void fx_isPromiseJobQueueEmpty(xsMachine* the);
 static void fx_markTimer(txMachine* the, void* it, txMarkRoot markRoot);
 static void fx_print(xsMachine* the);
 static void fx_setImmediate(txMachine* the);
@@ -54,18 +55,18 @@ static void fx_setTimeout(txMachine* the);
 static void fx_setTimer(txMachine* the, txNumber interval, txBoolean repeat);
 static void fx_setTimerCallback(txJob* job);
 
-static void fxQueuePromiseJobsCallback(txJob* job);
 static void fxFulfillModuleFile(txMachine* the);
 static void fxRejectModuleFile(txMachine* the);
 static void fxRunModuleFile(txMachine* the, txString path);
 static void fxRunProgramFile(txMachine* the, txString path, txUnsigned flags);
 static void fxRunLoop(txMachine* the);
 
-#define mxSnapshotCallbackCount 7
+#define mxSnapshotCallbackCount 8
 txCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_clearTimer,
 	fx_evalScript,
 	fx_gc,
+	fx_isPromiseJobQueueEmpty,
 	fx_print,
 	fx_setImmediate,
 	fx_setInterval,
@@ -133,7 +134,7 @@ int main(int argc, char* argv[])
 	};
 	xsCreation* creation = &_creation;
 	txSnapshot snapshot = {
-		"xsnap 1.0.1",
+		"xsnap 1.0.2",
 		11,
 		gxSnapshotCallbacks,
 		mxSnapshotCallbackCount,
@@ -290,11 +291,13 @@ void fxBuildAgent(xsMachine* the)
 	txSlot* slot;
 	mxPush(mxGlobal);
 	slot = fxLastProperty(the, fxToInstance(the, the->stack));
-	slot = fxNextHostFunctionProperty(the, slot, fx_gc, 1, xsID("gc"), XS_DONT_ENUM_FLAG);
-	slot = fxNextHostFunctionProperty(the, slot, fx_evalScript, 1, xsID("evalScript"), XS_DONT_ENUM_FLAG); 
-	slot = fxNextHostFunctionProperty(the, slot, fx_print, 1, xsID("print"), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_clearTimer, 1, xsID("clearImmediate"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_clearTimer, 1, xsID("clearInterval"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_clearTimer, 1, xsID("clearTimeout"), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_evalScript, 1, xsID("evalScript"), XS_DONT_ENUM_FLAG); 
+	slot = fxNextHostFunctionProperty(the, slot, fx_gc, 1, xsID("gc"), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_isPromiseJobQueueEmpty, 1, xsID("isPromiseJobQueueEmpty"), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_print, 1, xsID("print"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setImmediate, 1, xsID("setImmediate"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setInterval, 1, xsID("setInterval"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setTimeout, 1, xsID("setTimeout"), XS_DONT_ENUM_FLAG);
@@ -615,11 +618,6 @@ void fxPrintUsage()
 	printf("-f and -w are incompatible\n");
 }
 
-void fx_gc(xsMachine* the)
-{
-	xsCollectGarbage();
-}
-
 void fx_evalScript(xsMachine* the)
 {
 	txSlot* realm = mxProgram.value.reference->next->value.module.realm;
@@ -629,6 +627,16 @@ void fx_evalScript(xsMachine* the)
 	aStream.size = c_strlen(fxToString(the, mxArgv(0)));
 	fxRunScript(the, fxParseScript(the, &aStream, fxStringGetter, mxProgramFlag | mxDebugFlag), mxRealmGlobal(realm), C_NULL, mxRealmClosures(realm)->value.reference, C_NULL, mxProgram.value.reference);
 	mxPullSlot(mxResult);
+}
+
+void fx_gc(xsMachine* the)
+{
+	xsCollectGarbage();
+}
+
+void fx_isPromiseJobQueueEmpty(txMachine* the)
+{
+	xsResult = (the->promiseJobs) ? xsFalse : xsTrue;
 }
 
 void fx_print(xsMachine* the)
@@ -668,7 +676,7 @@ void fx_clearTimer(txMachine* the)
 	if (data) {
 		txJob* job;
 		txJob** address;
-		address = (txJob**)&(the->job);
+		address = (txJob**)&(the->timerJobs);
 		while ((job = *address)) {
 			if (job == data) {
 				*address = job->next;
@@ -698,7 +706,7 @@ void fx_setTimer(txMachine* the, txNumber interval, txBoolean repeat)
 {
 	c_timeval tv;
 	txJob* job;
-	txJob** address = (txJob**)&(the->job);
+	txJob** address = (txJob**)&(the->timerJobs);
 	while ((job = *address))
 		address = &(job->next);
 	job = *address = malloc(sizeof(txJob));
@@ -750,32 +758,26 @@ void fxCreateMachinePlatform(txMachine* the)
 #ifdef mxDebug
 	the->connection = mxNoSocket;
 #endif
-	the->job = NULL;
+	the->promiseJobs = 0;
+	the->timerJobs = NULL;
 }
 
 void fxDeleteMachinePlatform(txMachine* the)
 {
 }
 
-void fxQueuePromiseJobs(txMachine* the)
+void fxMarkHost(txMachine* the, txMarkRoot markRoot)
 {
-	c_timeval tv;
-	txJob* job;
-	txJob** address = (txJob**)&(the->job);
-	while ((job = *address))
-		address = &(job->next);
-	job = *address = malloc(sizeof(txJob));
-    c_memset(job, 0, sizeof(txJob));
-    job->the = the;
-    job->callback = fxQueuePromiseJobsCallback;
-	c_gettimeofday(&tv, NULL);
-	job->when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
+	txJob* job = the->timerJobs;
+	while (job) {
+		fx_markTimer(the, job, markRoot);
+		job = job->next;
+	}
 }
 
-void fxQueuePromiseJobsCallback(txJob* job) 
+void fxQueuePromiseJobs(txMachine* the)
 {
-	txMachine* the = job->the;
-	fxRunPromiseJobs(the);
+	the->promiseJobs = 1;
 }
 
 void fxRunLoop(txMachine* the)
@@ -785,9 +787,13 @@ void fxRunLoop(txMachine* the)
 	txJob* job;
 	txJob** address;
 	for (;;) {
+		while (the->promiseJobs) {
+			the->promiseJobs = 0;
+			fxRunPromiseJobs(the);
+		}
 		c_gettimeofday(&tv, NULL);
 		when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
-		address = (txJob**)&(the->job);
+		address = (txJob**)&(the->timerJobs);
 		if (!*address)
 			break;
 		while ((job = *address)) {
@@ -800,11 +806,15 @@ void fxRunLoop(txMachine* the)
 					*address = job->next;
 					c_free(job);
 				}
+				break;
 			}
-			else
-				address = &(job->next);
+			address = &(job->next);
 		}
 	}
+}
+
+void fxSweepHost(txMachine* the)
+{
 }
 
 void fxFulfillModuleFile(txMachine* the)
