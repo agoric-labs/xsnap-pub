@@ -28,6 +28,7 @@ C_OPTIONS = \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xsnap.h\" \
 	-DmxDebug=1 \
+	-DmxMetering=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
 	-DmxSloppy=1 \

@@ -40,7 +40,10 @@ static void fxCheckAliasesError(txMachine* the, txAliasIDList* list, txFlag flag
 static void fxCheckEnvironmentAliases(txMachine* the, txSlot* environment, txAliasIDList* list);
 static void fxCheckInstanceAliases(txMachine* the, txSlot* instance, txAliasIDList* list);
 static void fxFreezeBuiltIns(txMachine* the);
+static void fxPatchBuiltIns(txMachine* the);
 static void fxPrintUsage();
+
+static void fx_Array_prototype_meter(xsMachine* the);
 
 extern void fx_clearTimer(txMachine* the);
 static void fx_destroyTimer(void* data);
@@ -61,7 +64,7 @@ static void fxRunModuleFile(txMachine* the, txString path);
 static void fxRunProgramFile(txMachine* the, txString path, txUnsigned flags);
 static void fxRunLoop(txMachine* the);
 
-#define mxSnapshotCallbackCount 8
+#define mxSnapshotCallbackCount 9
 txCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_clearTimer,
 	fx_evalScript,
@@ -71,6 +74,7 @@ txCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_setImmediate,
 	fx_setInterval,
 	fx_setTimeout,
+	fx_Array_prototype_meter,
 };
 
 enum {
@@ -112,12 +116,58 @@ static int fxSnapshopWrite(void* stream, void* address, size_t size)
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
 
+#define xsBeginMetering(_THE, _CALLBACK, _STEP) \
+	do { \
+		xsJump __HOST_JUMP__; \
+		__HOST_JUMP__.nextJump = (_THE)->firstJump; \
+		__HOST_JUMP__.stack = (_THE)->stack; \
+		__HOST_JUMP__.scope = (_THE)->scope; \
+		__HOST_JUMP__.frame = (_THE)->frame; \
+		__HOST_JUMP__.environment = NULL; \
+		__HOST_JUMP__.code = (_THE)->code; \
+		__HOST_JUMP__.flag = 0; \
+		(_THE)->firstJump = &__HOST_JUMP__; \
+		if (setjmp(__HOST_JUMP__.buffer) == 0) { \
+			fxBeginMetering(_THE, _CALLBACK, _STEP)
+
+#define xsEndMetering(_THE) \
+			fxEndMetering(_THE); \
+		} \
+		(_THE)->stack = __HOST_JUMP__.stack, \
+		(_THE)->scope = __HOST_JUMP__.scope, \
+		(_THE)->frame = __HOST_JUMP__.frame, \
+		(_THE)->code = __HOST_JUMP__.code, \
+		(_THE)->firstJump = __HOST_JUMP__.nextJump; \
+		break; \
+	} while(1)
+	
+#define xsPatchHostFunction(_FUNCTION,_PATCH) \
+	(xsOverflow(-1), \
+	fxPush(_FUNCTION), \
+	fxPatchHostFunction(the, _PATCH), \
+	fxPop())
+#define xsMeterHostFunction(_COUNT) \
+	fxMeterHostFunction(the, _COUNT)
+	
+static xsUnsignedValue gxMeteringLimit = 0;
+static xsBooleanValue fxMeteringCallback(xsMachine* the, xsUnsignedValue index)
+{
+	if (index > gxMeteringLimit) {
+		fprintf(stderr, "too much computation\n");
+		return 0;
+	}
+// 	fprintf(stderr, "%d\n", index);
+	return 1;
+}
+static xsBooleanValue gxMeteringPrint = 0;
+
 int main(int argc, char* argv[]) 
 {
 	int argi;
 	int argr = 0;
 	int argw = 0;
 	int error = 0;
+	int interval = 0;
 	int option = 0;
 	int freeze = 0;
 	xsCreation _creation = {
@@ -157,9 +207,7 @@ int main(int argc, char* argv[])
 	for (argi = 1; argi < argc; argi++) {
 		if (argv[argi][0] != '-')
 			continue;
-		if (!strcmp(argv[argi], "-h"))
-			fxPrintUsage();
-		else if (!strcmp(argv[argi], "-e"))
+		if (!strcmp(argv[argi], "-e"))
 			option = 1;
 		else if (!strcmp(argv[argi], "-f")) {
 			if (argw) {
@@ -168,8 +216,30 @@ int main(int argc, char* argv[])
 			}
 			freeze = 1;
 		}
+		else if (!strcmp(argv[argi], "-h"))
+			fxPrintUsage();
+		else if (!strcmp(argv[argi], "-i")) {
+			argi++;
+			if (argi < argc)
+				interval = atoi(argv[argi]);
+			else {
+				fxPrintUsage();
+				return 1;
+			}
+		}
+		else if (!strcmp(argv[argi], "-l")) {
+			argi++;
+			if (argi < argc)
+				gxMeteringLimit = atoi(argv[argi]);
+			else {
+				fxPrintUsage();
+				return 1;
+			}
+		}
 		else if (!strcmp(argv[argi], "-m"))
 			option = 2;
+		else if (!strcmp(argv[argi], "-p"))
+			gxMeteringPrint = 1;
 		else if (!strcmp(argv[argi], "-r")) {
 			argi++;
 			if (argi < argc)
@@ -201,6 +271,10 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 	}
+	if (gxMeteringLimit) {
+		if (interval == 0)
+			interval = 1;
+	}
 	fxInitializeSharedCluster();
 	if (argr) {
 		snapshot.stream = fopen(argv[argr], "rb");
@@ -218,6 +292,7 @@ int main(int argc, char* argv[])
 	else {
 		machine = xsCreateMachine(creation, "xsnap", NULL);
 		fxBuildAgent(machine);
+		fxPatchBuiltIns(machine);
 	}
 	if (freeze) {
 		fxFreezeBuiltIns(machine);
@@ -225,62 +300,74 @@ int main(int argc, char* argv[])
 		fxCheckAliases(machine);
 		machine = xsCloneMachine(creation, machine, "xsnap", NULL);
 	}
-	xsBeginHost(machine);
+	xsBeginMetering(machine, fxMeteringCallback, interval);
 	{
-		xsVars(1);
-		xsTry {
-			for (argi = 1; argi < argc; argi++) {
-				if (argv[argi][0] == '-')
-					continue;
-				if (argi == argr)
-					continue;
-				if (argi == argw)
-					continue;
-				if (option == 1) {
-					xsResult = xsString(argv[argi]);
-					xsCall1(xsGlobal, xsID("eval"), xsResult);
+		xsBeginHost(machine);
+		{
+			xsVars(1);
+			xsTry {
+				for (argi = 1; argi < argc; argi++) {
+					if (!strcmp(argv[argi], "-i")) {
+						argi++;
+						continue;
+					}
+					if (!strcmp(argv[argi], "-l")) {
+						argi++;
+						continue;
+					}
+					if (argv[argi][0] == '-')
+						continue;
+					if (argi == argr)
+						continue;
+					if (argi == argw)
+						continue;
+					if (option == 1) {
+						xsResult = xsString(argv[argi]);
+						xsCall1(xsGlobal, xsID("eval"), xsResult);
+					}
+					else {	
+						if (!c_realpath(argv[argi], path))
+							xsURIError("file not found: %s", argv[argi]);
+						dot = strrchr(path, '.');
+						if (((option == 0) && dot && !c_strcmp(dot, ".mjs")) || (option == 2))
+							fxRunModuleFile(the, path);
+						else
+							fxRunProgramFile(the, path, mxProgramFlag | mxDebugFlag);
+					}
 				}
-				else {	
-					if (!c_realpath(argv[argi], path))
-						xsURIError("file not found: %s", argv[argi]);
-					dot = strrchr(path, '.');
-					if (((option == 0) && dot && !c_strcmp(dot, ".mjs")) || (option == 2))
-						fxRunModuleFile(the, path);
-					else
-						fxRunProgramFile(the, path, mxProgramFlag | mxDebugFlag);
+			}
+			xsCatch {
+				if (xsTypeOf(xsException) != xsUndefinedType) {
+					fprintf(stderr, "%s\n", xsToString(xsException));
+					error = 1;
+					xsException = xsUndefined;
 				}
 			}
 		}
-		xsCatch {
+		xsEndHost(machine);
+		fxRunLoop(machine);
+		xsBeginHost(machine);
+		{
 			if (xsTypeOf(xsException) != xsUndefinedType) {
 				fprintf(stderr, "%s\n", xsToString(xsException));
 				error = 1;
-				xsException = xsUndefined;
+			}
+		}
+		xsEndHost(machine);
+		if (argw) {
+			snapshot.stream = fopen(argv[argw], "wb");
+			if (snapshot.stream) {
+				fxWriteSnapshot(machine, &snapshot);
+				fclose(snapshot.stream);
+			}
+			else
+				snapshot.error = errno;
+			if (snapshot.error) {
+				fprintf(stderr, "cannot write snapshot %s: %s\n", argv[argw], strerror(snapshot.error));
 			}
 		}
 	}
-	xsEndHost(machine);
-	fxRunLoop(machine);
-	xsBeginHost(machine);
-	{
-		if (xsTypeOf(xsException) != xsUndefinedType) {
-			fprintf(stderr, "%s\n", xsToString(xsException));
-			error = 1;
-		}
-	}
-	xsEndHost(machine);
-	if (argw) {
-		snapshot.stream = fopen(argv[argw], "wb");
-		if (snapshot.stream) {
-			fxWriteSnapshot(machine, &snapshot);
-			fclose(snapshot.stream);
-		}
-		else
-			snapshot.error = errno;
-		if (snapshot.error) {
-			fprintf(stderr, "cannot write snapshot %s: %s\n", argv[argw], strerror(snapshot.error));
-		}
-	}
+	xsEndMetering(machine);
 	xsDeleteMachine(machine);
 	fxTerminateSharedCluster();
 	return error;
@@ -601,12 +688,33 @@ void fxFreezeBuiltIns(txMachine* the)
 	mxPop();
 }
 
+void fx_Array_prototype_meter(xsMachine* the)
+{
+	xsIntegerValue length = xsToInteger(xsGet(xsThis, xsID("length")));
+	xsMeterHostFunction(length);
+}
+
+void fxPatchBuiltIns(txMachine* machine)
+{
+	xsBeginHost(machine);
+	xsVars(2);
+	xsVar(0) = xsGet(xsGlobal, xsID("Array"));
+	xsVar(0) = xsGet(xsVar(0), xsID("prototype"));
+	xsVar(1) = xsGet(xsVar(0), xsID("reverse"));
+	xsPatchHostFunction(xsVar(1), fx_Array_prototype_meter);
+	xsVar(1) = xsGet(xsVar(0), xsID("sort"));
+	xsPatchHostFunction(xsVar(1), fx_Array_prototype_meter);
+	xsEndHost(machine);
+}
+
 void fxPrintUsage()
 {
-	printf("xsnap [-h] [-e] [-f] [-m] [-r <snapshot>] [-s] [-v] [-w <snapshot>] strings...\n");
-	printf("\t-h: print this help message\n");
+	printf("xsnap [-h] [-e] [-f] [i <interval] [l <limit] [-m] [-r <snapshot>] [-s] [-v] [-w <snapshot>] strings...\n");
 	printf("\t-e: eval strings\n");
 	printf("\t-f: freeze the XS machine\n");
+	printf("\t-h: print this help message\n");
+	printf("\t-i <interval>: metering interval (default to 1)\n");
+	printf("\t-l <limit>: metering limit (default to none)\n");
 	printf("\t-m: strings are paths to modules\n");
 	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
 	printf("\t-s: strings are paths to scripts\n");
@@ -642,6 +750,8 @@ void fx_isPromiseJobQueueEmpty(txMachine* the)
 void fx_print(xsMachine* the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc), i;
+	if (gxMeteringPrint)
+		fprintf(stdout, "[%u] ", the->meterIndex);
 	for (i = 0; i < c; i++) {
 		if (i)
 			fprintf(stdout, " ");
@@ -753,6 +863,18 @@ void fx_setTimerCallback(txJob* job)
 
 /* PLATFORM */
 
+void fxAbort(txMachine* the, int status)
+{
+	if (status == XS_NOT_ENOUGH_MEMORY_EXIT)
+		mxUnknownError("not enough memory");
+	else if (status == XS_STACK_OVERFLOW_EXIT)
+		mxUnknownError("stack overflow");
+	else if (status == XS_TOO_MUCH_COMPUTATION_EXIT)
+		fxExitToHost(the);
+	else
+		c_exit(status);
+}
+
 void fxCreateMachinePlatform(txMachine* the)
 {
 #ifdef mxDebug
@@ -851,16 +973,6 @@ void fxRunProgramFile(txMachine* the, txString path, txUnsigned flags)
 }
 
 /* DEBUG */
-
-void fxAbort(txMachine* the, int status)
-{
-	if (status == XS_NOT_ENOUGH_MEMORY_EXIT)
-		mxUnknownError("not enough memory");
-	else if (status == XS_STACK_OVERFLOW_EXIT)
-		mxUnknownError("stack overflow");
-	else
-		c_exit(status);
-}
 
 #ifdef mxDebug
 

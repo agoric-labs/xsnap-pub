@@ -21,6 +21,7 @@ C_OPTIONS = \
 	/D INCLUDE_XSPLATFORM \
 	/D XSPLATFORM=\"xsnap.h\" \
 	/D mxDebug=1 \
+	/D mxMetering=1 \
 	/D mxParse=1 \
 	/D mxRun=1 \
 	/D mxSloppy=1 \
