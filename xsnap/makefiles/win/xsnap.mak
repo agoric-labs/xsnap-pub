@@ -20,7 +20,6 @@ C_OPTIONS = \
 	/D _CRT_SECURE_NO_DEPRECATE \
 	/D INCLUDE_XSPLATFORM \
 	/D XSPLATFORM=\"xsnap.h\" \
-	/D mxDebug=1 \
 	/D mxMetering=1 \
 	/D mxParse=1 \
 	/D mxRun=1 \
@@ -35,6 +34,7 @@ C_OPTIONS = \
 !IF "$(GOAL)"=="debug"
 C_OPTIONS = $(C_OPTIONS) \
 	/D _DEBUG \
+	/D mxDebug=1 \
 	/Fp$(TMP_DIR_DBG)\ \
 	/Od \
 	/W3 \
@@ -42,6 +42,7 @@ C_OPTIONS = $(C_OPTIONS) \
 !ELSE
 C_OPTIONS = $(C_OPTIONS) \
 	/D NDEBUG \
+	/D mxBoundsCheck=1 \
 	/Fp$(TMP_DIR_RLS)\ \
 	/O2 \
 	/W0

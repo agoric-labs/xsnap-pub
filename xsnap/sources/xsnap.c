@@ -29,6 +29,7 @@ struct sxJob {
 	txMachine* the;
 	txNumber when;
 	txJobCallback callback;
+	txSlot self;
 	txSlot function;
 	txSlot argument;
 	txNumber interval;
@@ -153,7 +154,7 @@ static xsUnsignedValue gxMeteringLimit = 0;
 static xsBooleanValue fxMeteringCallback(xsMachine* the, xsUnsignedValue index)
 {
 	if (index > gxMeteringLimit) {
-		fprintf(stderr, "too much computation\n");
+// 		fprintf(stderr, "too much computation\n");
 		return 0;
 	}
 // 	fprintf(stderr, "%d\n", index);
@@ -305,55 +306,38 @@ int main(int argc, char* argv[])
 		xsBeginHost(machine);
 		{
 			xsVars(1);
-			xsTry {
-				for (argi = 1; argi < argc; argi++) {
-					if (!strcmp(argv[argi], "-i")) {
-						argi++;
-						continue;
-					}
-					if (!strcmp(argv[argi], "-l")) {
-						argi++;
-						continue;
-					}
-					if (argv[argi][0] == '-')
-						continue;
-					if (argi == argr)
-						continue;
-					if (argi == argw)
-						continue;
-					if (option == 1) {
-						xsResult = xsString(argv[argi]);
-						xsCall1(xsGlobal, xsID("eval"), xsResult);
-					}
-					else {	
-						if (!c_realpath(argv[argi], path))
-							xsURIError("file not found: %s", argv[argi]);
-						dot = strrchr(path, '.');
-						if (((option == 0) && dot && !c_strcmp(dot, ".mjs")) || (option == 2))
-							fxRunModuleFile(the, path);
-						else
-							fxRunProgramFile(the, path, mxProgramFlag | mxDebugFlag);
-					}
+			for (argi = 1; argi < argc; argi++) {
+				if (!strcmp(argv[argi], "-i")) {
+					argi++;
+					continue;
 				}
-			}
-			xsCatch {
-				if (xsTypeOf(xsException) != xsUndefinedType) {
-					fprintf(stderr, "%s\n", xsToString(xsException));
-					error = 1;
-					xsException = xsUndefined;
+				if (!strcmp(argv[argi], "-l")) {
+					argi++;
+					continue;
+				}
+				if (argv[argi][0] == '-')
+					continue;
+				if (argi == argr)
+					continue;
+				if (argi == argw)
+					continue;
+				if (option == 1) {
+					xsResult = xsString(argv[argi]);
+					xsCall1(xsGlobal, xsID("eval"), xsResult);
+				}
+				else {	
+					if (!c_realpath(argv[argi], path))
+						xsURIError("file not found: %s", argv[argi]);
+					dot = strrchr(path, '.');
+					if (((option == 0) && dot && !c_strcmp(dot, ".mjs")) || (option == 2))
+						fxRunModuleFile(the, path);
+					else
+						fxRunProgramFile(the, path, mxProgramFlag | mxDebugFlag);
 				}
 			}
 		}
 		xsEndHost(machine);
 		fxRunLoop(machine);
-		xsBeginHost(machine);
-		{
-			if (xsTypeOf(xsException) != xsUndefinedType) {
-				fprintf(stderr, "%s\n", xsToString(xsException));
-				error = 1;
-			}
-		}
-		xsEndHost(machine);
 		if (argw) {
 			snapshot.stream = fopen(argv[argw], "wb");
 			if (snapshot.stream) {
@@ -780,22 +764,13 @@ static txHostHooks gxTimerHooks = {
 	fx_markTimer
 };
 
-void fx_clearTimer(txMachine* the)
+void fx_clearTimer(xsMachine* the)
 {
-	txJob* data = fxGetHostData(the, mxThis);
-	if (data) {
-		txJob* job;
-		txJob** address;
-		address = (txJob**)&(the->timerJobs);
-		while ((job = *address)) {
-			if (job == data) {
-				*address = job->next;
-				c_free(job);
-				break;
-			}
-			address = &(job->next);
-		}
-		fxSetHostData(the, mxThis, NULL);
+	txJob* job = xsGetHostData(xsArg(0));
+	if (job) {
+        xsForget(job->self);
+        xsSetHostData(xsArg(0), NULL);
+		job->the = NULL;
 	}
 }
 
@@ -827,52 +802,70 @@ void fx_setTimer(txMachine* the, txNumber interval, txBoolean repeat)
 	if (repeat)
 		job->interval = interval;
 	job->when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0) + interval;
-	job->function.kind = mxArgv(0)->kind;
-	job->function.value = mxArgv(0)->value;
-	if (mxArgc > 2) {
-		job->argument.kind = mxArgv(2)->kind;
-		job->argument.value = mxArgv(2)->value;
-	}
-	fxNewHostObject(the, C_NULL);
-	fxSetHostData(the, the->stack, job);
-	fxSetHostHooks(the, the->stack, &gxTimerHooks);
-	mxPullSlot(mxResult);
+	job->self = xsNewHostObject(NULL);
+	job->function = xsArg(0);
+	if (xsToInteger(xsArgc) > 2)
+		job->argument = xsArg(2);
+	else
+		job->argument = xsUndefined;
+	xsSetHostData(job->self, job);
+	xsSetHostHooks(job->self,  &gxTimerHooks);
+	xsRemember(job->self);
+	xsResult = xsAccess(job->self);
 }
 
 void fx_setTimerCallback(txJob* job)
 {
-	txMachine* the = job->the;
-	fxBeginHost(the);
+	xsMachine* machine = job->the;
+	xsBeginHost(machine);
 	{
-		mxTry(the) {
-			/* THIS */
-			mxPushUndefined();
-			/* FUNCTION */
-			mxPush(job->function);
-			mxCall();
-			mxPush(job->argument);
-			/* ARGC */
-			mxRunCount(1);
-			mxPop();
-		}
-		mxCatch(the) {
-		}
+		xsCallFunction1(job->function, xsUndefined, job->argument);
 	}
-	fxEndHost(the);
+	xsEndHost(machine);
 }
 
 /* PLATFORM */
 
 void fxAbort(txMachine* the, int status)
 {
-	if (status == XS_NOT_ENOUGH_MEMORY_EXIT)
-		mxUnknownError("not enough memory");
-	else if (status == XS_STACK_OVERFLOW_EXIT)
-		mxUnknownError("stack overflow");
-	else if (status == XS_TOO_MUCH_COMPUTATION_EXIT)
+	switch (status) {
+	case XS_STACK_OVERFLOW_EXIT:
+		xsLog("stack overflow\n");
+#ifdef mxDebug
+		fxDebugger(the, (char *)__FILE__, __LINE__);
+#endif
 		fxExitToHost(the);
-	else
+		break;
+	case XS_NOT_ENOUGH_MEMORY_EXIT:
+		xsLog("memory full\n");
+#ifdef mxDebug
+		fxDebugger(the, (char *)__FILE__, __LINE__);
+#endif
+		fxExitToHost(the);
+		break;
+	case XS_NO_MORE_KEYS_EXIT:
+		xsLog("not enough keys\n");
+#ifdef mxDebug
+		fxDebugger(the, (char *)__FILE__, __LINE__);
+#endif
+		fxExitToHost(the);
+		break;
+	case XS_TOO_MUCH_COMPUTATION_EXIT:
+		xsLog("too much computation\n");
+#ifdef mxDebug
+		fxDebugger(the, (char *)__FILE__, __LINE__);
+#endif
+		fxExitToHost(the);
+		break;
+	case XS_UNHANDLED_EXCEPTION_EXIT:
+	case XS_UNHANDLED_REJECTION_EXIT:
+		xsLog("%s\n", xsToString(xsException));
+		xsException = xsUndefined;
+		break;
+	default:
 		c_exit(status);
+		break;
+	}
 }
 
 void fxCreateMachinePlatform(txMachine* the)
@@ -886,15 +879,6 @@ void fxCreateMachinePlatform(txMachine* the)
 
 void fxDeleteMachinePlatform(txMachine* the)
 {
-}
-
-void fxMarkHost(txMachine* the, txMarkRoot markRoot)
-{
-	txJob* job = the->timerJobs;
-	while (job) {
-		fx_markTimer(the, job, markRoot);
-		job = job->next;
-	}
 }
 
 void fxQueuePromiseJobs(txMachine* the)
@@ -919,24 +903,32 @@ void fxRunLoop(txMachine* the)
 		if (!*address)
 			break;
 		while ((job = *address)) {
-			if (job->when <= when) {
-				(*job->callback)(job);	
-				if (job->interval) {
-					job->when += job->interval;
+			if (job->the) {
+				if (job->when <= when) {
+					(*job->callback)(job);	
+					if (job->the) {
+						if (job->interval) {
+							job->when += job->interval;
+						}
+						else {
+							xsBeginHost(job->the);
+							xsResult = xsAccess(job->self);
+							xsForget(job->self);
+							xsSetHostData(xsResult, NULL);
+							xsEndHost(job->the);
+							job->the = NULL;
+						}
+					}
+					break; // to run promise jobs queued by the timer in the same "tick"
 				}
-				else {
-					*address = job->next;
-					c_free(job);
-				}
-				break;
+				address = &(job->next);
 			}
-			address = &(job->next);
+			else {
+				*address = job->next;
+				c_free(job);
+			}
 		}
 	}
-}
-
-void fxSweepHost(txMachine* the)
-{
 }
 
 void fxFulfillModuleFile(txMachine* the)
