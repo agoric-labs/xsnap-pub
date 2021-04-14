@@ -43,6 +43,7 @@ static void fxCheckInstanceAliases(txMachine* the, txSlot* instance, txAliasIDLi
 static void fxFreezeBuiltIns(txMachine* the);
 static void fxPatchBuiltIns(txMachine* the);
 static void fxPrintUsage();
+static void fxTestPlay(txMachine* the);
 
 static void fx_Array_prototype_meter(xsMachine* the);
 
@@ -51,6 +52,7 @@ static void fx_destroyTimer(void* data);
 static void fx_evalScript(xsMachine* the);
 static void fx_gc(xsMachine* the);
 static void fx_isPromiseJobQueueEmpty(xsMachine* the);
+static void fx_issueCommand(xsMachine* the);
 static void fx_markTimer(txMachine* the, void* it, txMarkRoot markRoot);
 static void fx_print(xsMachine* the);
 static void fx_setImmediate(txMachine* the);
@@ -65,12 +67,13 @@ static void fxRunModuleFile(txMachine* the, txString path);
 static void fxRunProgramFile(txMachine* the, txString path, txUnsigned flags);
 static void fxRunLoop(txMachine* the);
 
-#define mxSnapshotCallbackCount 9
+#define mxSnapshotCallbackCount 10
 txCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_clearTimer,
 	fx_evalScript,
 	fx_gc,
 	fx_isPromiseJobQueueEmpty,
+	fx_issueCommand,
 	fx_print,
 	fx_setImmediate,
 	fx_setInterval,
@@ -252,6 +255,8 @@ int main(int argc, char* argv[])
 		}
 		else if (!strcmp(argv[argi], "-s"))
 			option = 3;
+		else if (!strcmp(argv[argi], "-t"))
+			option = 4;
 		else if (!strcmp(argv[argi], "-v"))
 			printf("XS %d.%d.%d\n", XS_MAJOR_VERSION, XS_MINOR_VERSION, XS_PATCH_VERSION);
 		else if (!strcmp(argv[argi], "-w")) {
@@ -306,33 +311,38 @@ int main(int argc, char* argv[])
 		xsBeginHost(machine);
 		{
 			xsVars(1);
-			for (argi = 1; argi < argc; argi++) {
-				if (!strcmp(argv[argi], "-i")) {
-					argi++;
-					continue;
-				}
-				if (!strcmp(argv[argi], "-l")) {
-					argi++;
-					continue;
-				}
-				if (argv[argi][0] == '-')
-					continue;
-				if (argi == argr)
-					continue;
-				if (argi == argw)
-					continue;
-				if (option == 1) {
-					xsResult = xsString(argv[argi]);
-					xsCall1(xsGlobal, xsID("eval"), xsResult);
-				}
-				else {	
-					if (!c_realpath(argv[argi], path))
-						xsURIError("file not found: %s", argv[argi]);
-					dot = strrchr(path, '.');
-					if (((option == 0) && dot && !c_strcmp(dot, ".mjs")) || (option == 2))
-						fxRunModuleFile(the, path);
-					else
-						fxRunProgramFile(the, path, mxProgramFlag | mxDebugFlag);
+			if (option == 4) {
+				fxTestPlay(the);
+			}
+			else {
+				for (argi = 1; argi < argc; argi++) {
+					if (!strcmp(argv[argi], "-i")) {
+						argi++;
+						continue;
+					}
+					if (!strcmp(argv[argi], "-l")) {
+						argi++;
+						continue;
+					}
+					if (argv[argi][0] == '-')
+						continue;
+					if (argi == argr)
+						continue;
+					if (argi == argw)
+						continue;
+					if (option == 1) {
+						xsResult = xsString(argv[argi]);
+						xsCall1(xsGlobal, xsID("eval"), xsResult);
+					}
+					else {	
+						if (!c_realpath(argv[argi], path))
+							xsURIError("file not found: %s", argv[argi]);
+						dot = strrchr(path, '.');
+						if (((option == 0) && dot && !c_strcmp(dot, ".mjs")) || (option == 2))
+							fxRunModuleFile(the, path);
+						else
+							fxRunProgramFile(the, path, mxProgramFlag | mxDebugFlag);
+					}
 				}
 			}
 		}
@@ -368,6 +378,7 @@ void fxBuildAgent(xsMachine* the)
 	slot = fxNextHostFunctionProperty(the, slot, fx_evalScript, 1, xsID("evalScript"), XS_DONT_ENUM_FLAG); 
 	slot = fxNextHostFunctionProperty(the, slot, fx_gc, 1, xsID("gc"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_isPromiseJobQueueEmpty, 1, xsID("isPromiseJobQueueEmpty"), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_issueCommand, 1, xsID("issueCommand"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_print, 1, xsID("print"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setImmediate, 1, xsID("setImmediate"), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_setInterval, 1, xsID("setInterval"), XS_DONT_ENUM_FLAG);
@@ -710,6 +721,51 @@ void fxPrintUsage()
 	printf("-f and -w are incompatible\n");
 }
 
+void fxTestPlay(xsMachine* the)
+{
+	int index = 0;
+	char* extensions[2] = { ".js", ".json" };
+	for (;;) {
+		int which;
+		for (which = 0; which < 2; which++) {
+			char path[PATH_MAX];
+			struct stat a_stat;
+			sprintf(path, "param-%d%s", index, extensions[which]);
+			if (stat(path, &a_stat) == 0) {
+				if (S_ISREG(a_stat.st_mode)) {
+					fprintf(stderr, "### %s\n", path);
+					FILE* file = fopen(path, "rb");
+					if (file) {
+						size_t length;
+						fseek(file, 0, SEEK_END);
+						length = ftell(file);
+						fseek(file, 0, SEEK_SET);
+						if (which == 0) {
+							xsStringValue string;
+							xsResult = xsStringBuffer(NULL, length);
+							string = xsToString(xsResult);
+							length = fread(string, 1, length, file);
+							string[length] = 0;
+							fclose(file);
+							xsCall1(xsGlobal, xsID("eval"), xsResult);
+						}
+						else {
+							xsResult = xsArrayBuffer(NULL, length);
+							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
+							fclose(file);
+							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
+						}
+					}
+					index++;
+					break;
+				}
+			}
+		}
+		if (which == 2)
+			break;
+	}
+}
+
 void fx_evalScript(xsMachine* the)
 {
 	txSlot* realm = mxProgram.value.reference->next->value.module.realm;
@@ -729,6 +785,26 @@ void fx_gc(xsMachine* the)
 void fx_isPromiseJobQueueEmpty(txMachine* the)
 {
 	xsResult = (the->promiseJobs) ? xsFalse : xsTrue;
+}
+
+void fx_issueCommand(txMachine* the)
+{
+	static int index = 0;
+	char path[PATH_MAX];
+	FILE* file;
+	size_t length;
+	sprintf(path, "reply-%d.js", index);
+	fprintf(stderr, "### %s\n", path);
+	file = fopen(path, "rb");
+	if (file) {
+		fseek(file, 0, SEEK_END);
+		length = ftell(file);
+		fseek(file, 0, SEEK_SET);
+		xsResult = xsArrayBuffer(NULL, length);
+		length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
+		fclose(file);
+	}
+	index++;
 }
 
 void fx_print(xsMachine* the)
@@ -894,8 +970,11 @@ void fxRunLoop(txMachine* the)
 	txJob** address;
 	for (;;) {
 		while (the->promiseJobs) {
-			the->promiseJobs = 0;
-			fxRunPromiseJobs(the);
+			while (the->promiseJobs) {
+				the->promiseJobs = 0;
+				fxRunPromiseJobs(the);
+			}
+			fxEndJob(the);
 		}
 		c_gettimeofday(&tv, NULL);
 		when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
