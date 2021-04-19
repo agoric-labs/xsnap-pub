@@ -19,7 +19,7 @@ C_OPTIONS = \
 	/D WIN32 \
 	/D _CRT_SECURE_NO_DEPRECATE \
 	/D INCLUDE_XSPLATFORM \
-	/D XSPLATFORM=\"xsnap.h\" \
+	/D XSPLATFORM=\"xsnapPlatform.h\" \
 	/D mxMetering=1 \
 	/D mxParse=1 \
 	/D mxRun=1 \
@@ -100,6 +100,7 @@ OBJECTS = \
 	$(TMP_DIR)\xsType.o \
 	$(TMP_DIR)\xsdtoa.o \
 	$(TMP_DIR)\xsre.o \
+	$(TMP_DIR)\xsnapPlatform.o \
 	$(TMP_DIR)\xsnap.o
 
 build : $(TMP_DIR) $(BIN_DIR) $(BIN_DIR)\$(NAME).exe
@@ -119,6 +120,7 @@ $(BIN_DIR)\$(NAME).exe : $(OBJECTS)
 		/out:$(BIN_DIR)\$(NAME).exe
 
 $(OBJECTS) : $(TLS_DIR)\xsnap.h
+$(OBJECTS) : $(TLS_DIR)\xsnapPlatform.h
 $(OBJECTS) : $(PLT_DIR)\xsPlatform.h
 $(OBJECTS) : $(SRC_DIR)\xsCommon.h
 $(OBJECTS) : $(SRC_DIR)\xsAll.h

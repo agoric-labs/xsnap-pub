@@ -7,14 +7,15 @@ ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
+MODDABLE = $(CURDIR)/../../moddable
 XS_DIR = $(MODDABLE)/xs
-BUILD_DIR = $(MODDABLE)/build
+BUILD_DIR = $(CURDIR)/../../build
 
 BIN_DIR = $(BUILD_DIR)/bin/lin/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
-TLS_DIR = ../../sources
+TLS_DIR = ../../src
 TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
 
 MACOS_ARCH ?= -arch i386
@@ -24,11 +25,12 @@ C_OPTIONS = \
 	-fno-common \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
-	-DmxMetering=1 \
+	-DXSNAP_VERSION=\"$(XSNAP_VERSION)\" \
 	-DmxParse=1 \
 	-DmxRun=1 \
 	-DmxSloppy=1 \
 	-DmxSnapshot=1 \
+	-DmxMetering=1 \
 	-DmxRegExpUnicodePropertyEscapes=1 \
 	-I$(INC_DIR) \
 	-I$(PLT_DIR) \
@@ -94,7 +96,7 @@ OBJECTS = \
 	$(TMP_DIR)/xsdtoa.o \
 	$(TMP_DIR)/xsre.o \
 	$(TMP_DIR)/xsnapPlatform.o \
-	$(TMP_DIR)/xsnap.o
+	$(TMP_DIR)/$(NAME).o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
 
@@ -109,7 +111,7 @@ $(BIN_DIR):
 $(BIN_DIR)/$(NAME): $(OBJECTS)
 	@echo "#" $(NAME) $(GOAL) ": cc" $(@F)
 	$(CC) $(LINK_OPTIONS) $(OBJECTS) $(LIBRARIES) -o $@
-	
+
 $(OBJECTS): $(TLS_DIR)/xsnap.h
 $(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
 $(OBJECTS): $(PLT_DIR)/xsPlatform.h

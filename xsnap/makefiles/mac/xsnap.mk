@@ -26,7 +26,7 @@ C_OPTIONS = \
 	$(MACOS_ARCH) \
 	$(MACOS_VERSION_MIN) \
 	-DINCLUDE_XSPLATFORM \
-	-DXSPLATFORM=\"xsnap.h\" \
+	-DXSPLATFORM=\"xsnapPlatform.h\" \
 	-DmxMetering=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
@@ -102,6 +102,7 @@ OBJECTS = \
 	$(TMP_DIR)/xsType.o \
 	$(TMP_DIR)/xsdtoa.o \
 	$(TMP_DIR)/xsre.o \
+	$(TMP_DIR)/xsnapPlatform.o \
 	$(TMP_DIR)/xsnap.o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
@@ -119,6 +120,7 @@ $(BIN_DIR)/$(NAME): $(OBJECTS)
 	$(CC) $(LINK_OPTIONS) $(LIBRARIES) $(OBJECTS) -o $@
 	
 $(OBJECTS): $(TLS_DIR)/xsnap.h
+$(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
 $(OBJECTS): $(PLT_DIR)/xsPlatform.h
 $(OBJECTS): $(SRC_DIR)/xsCommon.h
 $(OBJECTS): $(SRC_DIR)/xsAll.h

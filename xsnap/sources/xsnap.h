@@ -1,84 +1,136 @@
 #ifndef __XSNAP__
 #define __XSNAP__
 
-#if defined(_MSC_VER)
-	#if defined(_M_IX86) || defined(_M_X64)
-		#undef mxLittleEndian
-		#define mxLittleEndian 1
-		#undef mxWindows
-		#define mxWindows 1
-		#define mxExport extern
-		#define mxImport extern
-		#define XS_FUNCTION_NORETURN
-	#else 
-		#error unknown Microsoft compiler
-	#endif
-#elif defined(__GNUC__) 
-	#if defined(__i386__) || defined(i386) || defined(intel) || defined(arm) || defined(__arm__) || defined(__k8__) || defined(__x86_64__) || defined(__aarch64__)
-		#undef mxLittleEndian
-		#define mxLittleEndian 1
-		#if defined(__linux__) || defined(linux)
-			#undef mxLinux
-			#define mxLinux 1
-		#else
-			#undef mxMacOSX
-			#define mxMacOSX 1
-		#endif
-		#define mxExport extern
-		#define mxImport extern
-		#define XS_FUNCTION_NORETURN __attribute__((noreturn))
-	#else 
-		#error unknown GNU compiler
-	#endif
-#else 
-	#error unknown compiler
-#endif
+#include "xs.h"
 
-#if mxWindows
-	#define _USE_MATH_DEFINES
-	#define WIN32_LEAN_AND_MEAN
-	#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#endif
-#include <ctype.h>
-#include <float.h>
-#include <math.h>
-#include <setjmp.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#if mxWindows
-	#include <winsock2.h>
-	typedef SOCKET txSocket;
-	#define mxNoSocket INVALID_SOCKET
+typedef struct xsSnapshotRecord xsSnapshot;
+
+struct xsSnapshotRecord {
+	char* signature;
+	int signatureLength;
+	xsCallback* callbacks;
+	int callbacksLength;
+	int (*read)(void* stream, void* address, size_t size);
+	int (*write)(void* stream, void* address, size_t size);
+	void* stream;
+	int error;
+	void* firstChunk;
+	void* firstProjection;
+	void* firstSlot;
+};
+
+#define xsInitializeSharedCluster() \
+	fxInitializeSharedCluster()
+#define xsTerminateSharedCluster() \
+	fxTerminateSharedCluster()
+
+#ifdef mxMetering
+
+#define xsBeginMetering(_THE, _CALLBACK, _STEP) \
+	do { \
+		xsJump __HOST_JUMP__; \
+		__HOST_JUMP__.nextJump = (_THE)->firstJump; \
+		__HOST_JUMP__.stack = (_THE)->stack; \
+		__HOST_JUMP__.scope = (_THE)->scope; \
+		__HOST_JUMP__.frame = (_THE)->frame; \
+		__HOST_JUMP__.environment = NULL; \
+		__HOST_JUMP__.code = (_THE)->code; \
+		__HOST_JUMP__.flag = 0; \
+		(_THE)->firstJump = &__HOST_JUMP__; \
+		if (setjmp(__HOST_JUMP__.buffer) == 0) { \
+			fxBeginMetering(_THE, _CALLBACK, _STEP)
+
+#define xsEndMetering(_THE) \
+			fxEndMetering(_THE); \
+		} \
+		(_THE)->stack = __HOST_JUMP__.stack, \
+		(_THE)->scope = __HOST_JUMP__.scope, \
+		(_THE)->frame = __HOST_JUMP__.frame, \
+		(_THE)->code = __HOST_JUMP__.code, \
+		(_THE)->firstJump = __HOST_JUMP__.nextJump; \
+		break; \
+	} while(1)
+	
+#define xsPatchHostFunction(_FUNCTION,_PATCH) \
+	(xsOverflow(-1), \
+	fxPush(_FUNCTION), \
+	fxPatchHostFunction(the, _PATCH), \
+	fxPop())
+#define xsMeterHostFunction(_COUNT) \
+	fxMeterHostFunction(the, _COUNT)
+			
+#define xsGetCurrentMeter(_THE) \
+	fxGetCurrentMeter(_THE)
+#define xsSetCurrentMeter(_THE, _VALUE) \
+	fxSetCurrentMeter(_THE, _VALUE)
+
 #else
-	#include <fcntl.h>
-	#include <arpa/inet.h>
-	#include <netdb.h>
-	#include <pthread.h>
-	#include <signal.h>
-	#include <unistd.h>
-	typedef int txSocket;
-	#define mxNoSocket -1
-	#define mxUseGCCAtomics 1
-	#define mxUsePOSIXThreads 1
+	#define xsBeginMetering(_THE, _CALLBACK, _STEP)
+	#define xsEndMetering(_THE)
+	#define xsPatchHostFunction(_FUNCTION,_PATCH)
+	#define xsMeterHostFunction(_COUNT) (void)(_COUNT)
+	#define xsGetCurrentMeter(_THE) 0
+	#define xsSetCurrentMeter(_THE, _VALUE)
 #endif
-#define mxMachinePlatform \
-	txSocket connection; \
-	int promiseJobs; \
-	void* timerJobs; \
-	void* waiterCondition; \
-	void* waiterData; \
-	txMachine* waiterLink;
 
-#define mxUseDefaultBuildKeys 1
-#define mxUseDefaultChunkAllocation 1
-#define mxUseDefaultSlotAllocation 1
-#define mxUseDefaultFindModule 1
-#define mxUseDefaultLoadModule 1
-#define mxUseDefaultParseScript 1
-#define mxUseDefaultSharedChunks 1
+#define xsReadSnapshot(_SNAPSHOT, _NAME, _CONTEXT) \
+	fxReadSnapshot(_SNAPSHOT, _NAME, _CONTEXT)
+#define xsWriteSnapshot(_THE, _SNAPSHOT) \
+	fxWriteSnapshot(_THE, _SNAPSHOT)
+
+#define xsCheckAliases(_THE) \
+	fxCheckAliases(_THE)
+#define xsFreezeBuiltIns(_THE) \
+	fxFreezeBuiltIns(_THE)
+	
+#define xsRunModuleFile(_PATH) \
+	fxRunModuleFile(the, _PATH)
+#define xsRunProgramFile(_PATH) \
+	fxRunProgramFile(the, _PATH)
+#define xsRunLoop(_THE) \
+	fxRunLoop(_THE)
+
+#define xsClearTimer() \
+	fxClearTimer(the)
+#define xsSetTimer(_INTERVAL, _REPEAT) \
+	fxSetTimer(the, _INTERVAL, _REPEAT)
+	
+#define xsVersion(_BUFFER, _SIZE) \
+	fxVersion(_BUFFER, _SIZE)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern void fxInitializeSharedCluster();
+extern void fxTerminateSharedCluster();
+
+#ifdef mxMetering
+mxImport void fxBeginMetering(xsMachine* the, xsBooleanValue (*callback)(xsMachine*, xsUnsignedValue), xsUnsignedValue interval);
+mxImport void fxEndMetering(xsMachine* the);
+mxImport void fxMeterHostFunction(xsMachine* the, xsUnsignedValue count);
+mxImport void fxPatchHostFunction(xsMachine* the, xsCallback patch);
+mxImport xsUnsignedValue fxGetCurrentMeter(xsMachine* the);
+mxImport void fxSetCurrentMeter(xsMachine* the, xsUnsignedValue value);
+#endif
+
+mxImport xsMachine* fxReadSnapshot(xsSnapshot* snapshot, xsStringValue theName, void* theContext);
+mxImport int fxWriteSnapshot(xsMachine* the, xsSnapshot* snapshot);
+
+mxImport xsIntegerValue fxCheckAliases(xsMachine* the);
+mxImport void fxFreezeBuiltIns(xsMachine* the);
+
+mxImport void fxRunModuleFile(xsMachine* the, xsStringValue path);
+mxImport void fxRunProgramFile(xsMachine* the, xsStringValue path);
+mxImport void fxRunLoop(xsMachine* the);
+
+mxImport void fxClearTimer(xsMachine* the);
+mxImport void fxSetTimer(xsMachine* the, xsNumberValue interval, xsBooleanValue repeat);
+
+mxImport void fxVersion(xsStringValue theBuffer, xsUnsignedValue theSize);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __XSNAP__ */
