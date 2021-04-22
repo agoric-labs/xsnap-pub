@@ -195,13 +195,13 @@ int main(int argc, char* argv[])
 	}
 	xsBeginMetering(machine, xsMeteringCallback, interval);
 	{
-		xsBeginHost(machine);
-		{
-			xsVars(1);
-			if (option == 4) {
-				xsPlayTest(the);
-			}
-			else {
+		if (option == 4) {
+			xsPlayTest(machine);
+		}
+		else {
+			xsBeginHost(machine);
+			{
+				xsVars(1);
 				for (argi = 1; argi < argc; argi++) {
 					if (!strcmp(argv[argi], "-i")) {
 						argi++;
@@ -232,19 +232,19 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
-		}
-		xsEndHost(machine);
-		xsRunLoop(machine);
-		if (argw) {
-			snapshot.stream = fopen(argv[argw], "wb");
-			if (snapshot.stream) {
-				xsWriteSnapshot(machine, &snapshot);
-				fclose(snapshot.stream);
-			}
-			else
-				snapshot.error = errno;
-			if (snapshot.error) {
-				fprintf(stderr, "cannot write snapshot %s: %s\n", argv[argw], strerror(snapshot.error));
+			xsEndHost(machine);
+			xsRunLoop(machine);
+			if (argw) {
+				snapshot.stream = fopen(argv[argw], "wb");
+				if (snapshot.stream) {
+					xsWriteSnapshot(machine, &snapshot);
+					fclose(snapshot.stream);
+				}
+				else
+					snapshot.error = errno;
+				if (snapshot.error) {
+					fprintf(stderr, "cannot write snapshot %s: %s\n", argv[argw], strerror(snapshot.error));
+				}
 			}
 		}
 	}
@@ -318,12 +318,13 @@ void xsFreezeAgent(xsMachine* machine)
 	xsEndHost(machine);
 }
 
-void xsPlayTest(xsMachine* the)
+void xsPlayTest(xsMachine* machine)
 {
 	int index = 0;
 	char* extensions[2] = { ".js", ".json" };
 	for (;;) {
 		int which;
+		xsBeginHost(machine);
 		for (which = 0; which < 2; which++) {
 			char path[PATH_MAX];
 			struct stat a_stat;
@@ -358,8 +359,10 @@ void xsPlayTest(xsMachine* the)
 				}
 			}
 		}
+		xsEndHost(machine);
 		if (which == 2)
 			break;
+		fxRunLoop(machine);
 	}
 }
 

@@ -126,6 +126,7 @@ $(OBJECTS) : $(SRC_DIR)\xsCommon.h
 $(OBJECTS) : $(SRC_DIR)\xsAll.h
 $(OBJECTS) : $(SRC_DIR)\xsScript.h
 $(OBJECTS) : $(SRC_DIR)\xsSnapshot.h
+$(OBJECTS) : $(SRC_DIR)\xs.h
 
 {$(SRC_DIR)\}.c{$(TMP_DIR)\}.o:
 	cl $< $(C_OPTIONS) /Fo$@
