@@ -50,14 +50,6 @@ struct xsSnapshotRecord {
 		(_THE)->firstJump = __HOST_JUMP__.nextJump; \
 		break; \
 	} while(1)
-	
-#define xsPatchHostFunction(_FUNCTION,_PATCH) \
-	(xsOverflow(-1), \
-	fxPush(_FUNCTION), \
-	fxPatchHostFunction(the, _PATCH), \
-	fxPop())
-#define xsMeterHostFunction(_COUNT) \
-	fxMeterHostFunction(the, _COUNT)
 			
 #define xsGetCurrentMeter(_THE) \
 	fxGetCurrentMeter(_THE)

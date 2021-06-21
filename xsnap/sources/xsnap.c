@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
 		1 * 1024 * 1024, 	/* initialHeapCount */
 		1 * 1024 * 1024, 	/* incrementalHeapCount */
 		4096, 				/* stackCount */
-		4096*3, 			/* keyCount */
+		256 * 1024, 		/* keyCount */
 		1993, 				/* nameModulo */
 		127, 				/* symbolModulo */
 		256 * 1024,			/* parserBufferSize */
@@ -413,6 +413,9 @@ void xs_issueCommand(xsMachine* the)
 void xs_print(xsMachine* the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc), i;
+	for (i = 0; i < c; i++) {
+		xsToString(xsArg(i));
+	}
 #ifdef mxMetering
 	if (gxMeteringPrint)
 		fprintf(stdout, "[%u] ", xsGetCurrentMeter(the));
