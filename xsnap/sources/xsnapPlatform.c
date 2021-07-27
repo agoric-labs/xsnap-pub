@@ -2,6 +2,10 @@
 #include "xsScript.h"
 #include "xsSnapshot.h"
 
+#ifndef mxReserveChunkSize
+	#define mxReserveChunkSize 1024 * 1024 * 1024
+#endif
+
 extern txScript* fxLoadScript(txMachine* the, txString path, txUnsigned flags);
 
 mxExport txInteger fxCheckAliases(txMachine* the);
@@ -143,6 +147,64 @@ void fxAbort(txMachine* the, int status)
 		c_exit(status);
 		break;
 	}
+}
+
+static txSize gxPageSize = 0;
+
+static txSize fxRoundToPageSize(txMachine* the, txSize size)
+{
+	txSize modulo;
+	if (!gxPageSize) {
+#if mxWindows
+		SYSTEM_INFO info;
+		GetSystemInfo(&info);
+		gxPageSize = (txSize)info.dwAllocationGranularity;
+#else
+		gxPageSize = getpagesize();
+#endif
+	}
+	modulo = size & (gxPageSize - 1);
+	if (modulo)
+		size = fxAddChunkSizes(the, size, gxPageSize - modulo);
+	return size;
+}
+
+void* fxAllocateChunks(txMachine* the, txSize size)
+{
+	txByte* base;
+	txByte* result;
+	if (the->firstBlock) {
+		base = (txByte*)(the->firstBlock);
+		result = (txByte*)(the->firstBlock->limit);
+	}
+	else
+#if mxWindows
+		base = result = VirtualAlloc(NULL, mxReserveChunkSize, MEM_RESERVE, PAGE_READWRITE);
+#else
+		base = result = mmap(NULL, mxReserveChunkSize, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+#endif
+	if (result) {
+		txSize current = (txSize)(result - base);
+		size = fxAddChunkSizes(the, current, size);
+		current = fxRoundToPageSize(the, current);
+		size = fxRoundToPageSize(the, size);
+#if mxWindows
+		if (!VirtualAlloc(base + current, size - current, MEM_COMMIT, PAGE_READWRITE))
+#else
+		if (mprotect(base + current, size - current, PROT_READ | PROT_WRITE))
+#endif
+			result = NULL;
+	}
+	return result;
+}
+
+void fxFreeChunks(txMachine* the, void* theChunks)
+{
+#if mxWindows
+	VirtualFree(theChunks, 0, MEM_RELEASE);
+#else
+	munmap(theChunks, mxReserveChunkSize);
+#endif
 }
 
 void fxCreateMachinePlatform(txMachine* the)
@@ -738,14 +800,10 @@ void fxFreezeBuiltIns(txMachine* the)
 	mxFreezeBuiltInCall; mxPush(mxGeneratorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxHostPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxIteratorPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxMapEntriesIteratorPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxMapKeysIteratorPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxMapValuesIteratorPrototype); mxFreezeBuiltInRun;
+	mxFreezeBuiltInCall; mxPush(mxMapIteratorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxModulePrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxRegExpStringIteratorPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxSetEntriesIteratorPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxSetKeysIteratorPrototype); mxFreezeBuiltInRun;
-	mxFreezeBuiltInCall; mxPush(mxSetValuesIteratorPrototype); mxFreezeBuiltInRun;
+	mxFreezeBuiltInCall; mxPush(mxSetIteratorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxStringIteratorPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxTransferPrototype); mxFreezeBuiltInRun;
 	mxFreezeBuiltInCall; mxPush(mxTypedArrayPrototype); mxFreezeBuiltInRun;

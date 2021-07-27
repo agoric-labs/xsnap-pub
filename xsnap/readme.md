@@ -1,5 +1,5 @@
 # xsnap
-Revised: November 10, 2020
+Revised: June 16, 2021
 
 Warning: These notes are preliminary. Omissions and errors are likely. If you encounter problems, please ask for assistance.
 
@@ -147,8 +147,8 @@ Use the `-l` option to limit the number of byte codes that can be executed.
 The test prints numbers and exits when too many byte codes have been executed.
 
 	...
-	524
-	525
+	473
+	474
 	too much computation
 
 Use the `-i` option to change how often XS asks the runtime if the limit has been reached.
@@ -158,8 +158,8 @@ Use the `-i` option to change how often XS asks the runtime if the limit has bee
 There is a performance gain but a precision lost.
 
 	...
-	527
-	528
+	476
+	477
 	too much computation
 
 ### metering-built-ins
@@ -172,11 +172,10 @@ Use the `-p` option to prefix `print` output with the metering index.
 The tests builds, sorts and reverses an array of 100 random numbers. Observe the metering index around `sort` and `reverse`.
 
 	...
-	[3516] 99 0.4153946155753893
-	[3536] sort
-	[3651] reverse
-	[3782] 0 0.000007826369259425611
+	[3935] 99 0.4153946155753893
+	[3957] sort
+	[11266] reverse
+	[16260] 0 0.000007826369259425611
 	...
 
-By default built-ins functions do not change the metering index. But xsnap patches `Array.prototype.sort` and `Array.prototype.reverse` to increase the metering index by the length of the array.
 

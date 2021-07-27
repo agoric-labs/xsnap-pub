@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 	int freeze = 0;
 	xsCreation _creation = {
 		16 * 1024 * 1024, 	/* initialChunkSize */
-		16 * 1024 * 1024, 	/* incrementalChunkSize */
+		4 * 1024 * 1024, 	/* incrementalChunkSize */
 		1 * 1024 * 1024, 	/* initialHeapCount */
 		1 * 1024 * 1024, 	/* incrementalHeapCount */
 		4096, 				/* stackCount */
@@ -259,6 +259,7 @@ int main(int argc, char* argv[])
 void xsBuildAgent(xsMachine* machine) 
 {
 	xsBeginHost(machine);
+	xsVars(1);
 	
 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
 	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
@@ -282,6 +283,12 @@ void xsBuildAgent(xsMachine* machine)
 	
 	xsResult = xsNewHostFunction(xs_issueCommand, 1);
 	xsDefine(xsGlobal, xsID("issueCommand"), xsResult, xsDontEnum);
+	
+	xsVar(0) = xsGet(xsGlobal, xsID("Date"));
+	xsVar(0) = xsGet(xsVar(0), xsID("now"));
+	xsResult = xsNewObject();
+	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
+	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
 	
 	xsEndHost(machine);
 }
@@ -326,11 +333,16 @@ void xsPlayTest(xsMachine* machine)
 		int which;
 		xsBeginHost(machine);
 		for (which = 0; which < 2; which++) {
-			char path[PATH_MAX];
-			struct stat a_stat;
+			char path[C_PATH_MAX];
 			sprintf(path, "param-%d%s", index, extensions[which]);
-			if (stat(path, &a_stat) == 0) {
-				if (S_ISREG(a_stat.st_mode)) {
+			{
+			#if mxWindows
+				DWORD attributes = GetFileAttributes(path);
+				if ((attributes != 0xFFFFFFFF) && (!(attributes & FILE_ATTRIBUTE_DIRECTORY))) {
+			#else
+				struct stat a_stat;
+				if ((stat(path, &a_stat) == 0) && (S_ISREG(a_stat.st_mode))) {
+			#endif
 					fprintf(stderr, "### %s\n", path);
 					FILE* file = fopen(path, "rb");
 					if (file) {
@@ -340,7 +352,7 @@ void xsPlayTest(xsMachine* machine)
 						fseek(file, 0, SEEK_SET);
 						if (which == 0) {
 							xsStringValue string;
-							xsResult = xsStringBuffer(NULL, length);
+							xsResult = xsStringBuffer(NULL, (xsIntegerValue)length);
 							string = xsToString(xsResult);
 							length = fread(string, 1, length, file);
 							string[length] = 0;
@@ -348,7 +360,7 @@ void xsPlayTest(xsMachine* machine)
 							xsCall1(xsGlobal, xsID("eval"), xsResult);
 						}
 						else {
-							xsResult = xsArrayBuffer(NULL, length);
+							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
 							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
 							fclose(file);
 							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
@@ -393,7 +405,7 @@ void xs_gc(xsMachine* the)
 void xs_issueCommand(xsMachine* the)
 {
 	static int index = 0;
-	char path[PATH_MAX];
+	char path[C_PATH_MAX];
 	FILE* file;
 	size_t length;
 	sprintf(path, "reply-%d.json", index);
@@ -403,7 +415,7 @@ void xs_issueCommand(xsMachine* the)
 		fseek(file, 0, SEEK_END);
 		length = ftell(file);
 		fseek(file, 0, SEEK_SET);
-		xsResult = xsArrayBuffer(NULL, length);
+		xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
 		length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
 		fclose(file);
 	}
