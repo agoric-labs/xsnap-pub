@@ -7,7 +7,7 @@ ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
-MODDABLE = $(CURDIR)/../../moddable
+# MODDABLE = $(CURDIR)/../../moddable
 BUILD_DIR = $(CURDIR)/../../build
 TLS_DIR = $(CURDIR)/../../sources
 
