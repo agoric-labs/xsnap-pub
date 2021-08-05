@@ -9,7 +9,7 @@ endif
 
 MODDABLE = $(CURDIR)/../../moddable
 BUILD_DIR = $(CURDIR)/../../build
-TLS_DIR = $(CURDIR)/../../src
+TLS_DIR = $(CURDIR)/../../sources
 
 # BUILD_DIR = $(MODDABLE)/build
 # TLS_DIR = ../../sources
