@@ -73,10 +73,17 @@
 	void* timerJobs; \
 	void* waiterCondition; \
 	void* waiterData; \
-	void* waiterLink;
+	void* waiterLink; \
+	size_t allocationLimit; \
+	size_t allocatedSpace; \
+	uint32_t allocateChunksCallCount; \
+	uint32_t allocateSlotsCallCount; \
+	uint32_t garbageCollectionCount; \
+	uint32_t mapSetAddCount; \
+	uint32_t mapSetRemoveCount; \
+	uint32_t maxBucketSize;
 
 #define mxUseDefaultBuildKeys 1
-#define mxUseDefaultSlotAllocation 1
 #define mxUseDefaultFindModule 1
 #define mxUseDefaultLoadModule 1
 #define mxUseDefaultParseScript 1

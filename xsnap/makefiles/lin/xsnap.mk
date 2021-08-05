@@ -7,18 +7,16 @@ ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
-XS_DIR = $(MODDABLE)/xs
 BUILD_DIR = $(MODDABLE)/build
+TLS_DIR = ../../sources
+
+XS_DIR = $(MODDABLE)/xs
 
 BIN_DIR = $(BUILD_DIR)/bin/lin/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
-TLS_DIR = ../../sources
 TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
-
-MACOS_ARCH ?= -arch i386
-MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
 
 C_OPTIONS = \
 	-fno-common \
@@ -109,7 +107,7 @@ $(BIN_DIR):
 $(BIN_DIR)/$(NAME): $(OBJECTS)
 	@echo "#" $(NAME) $(GOAL) ": cc" $(@F)
 	$(CC) $(LINK_OPTIONS) $(OBJECTS) $(LIBRARIES) -o $@
-	
+
 $(OBJECTS): $(TLS_DIR)/xsnap.h
 $(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
 $(OBJECTS): $(PLT_DIR)/xsPlatform.h

@@ -144,7 +144,12 @@ void fxAbort(txMachine* the, int status)
 		mxException = mxUndefined;
 		break;
 	default:
-		c_exit(status);
+		fxReport(the, "fxAbort(%d) - %s\n", status, fxToString(the, &mxException));
+#ifdef mxDebug
+		fxDebugger(the, (char *)__FILE__, __LINE__);
+#endif
+		the->abortStatus = status;
+		fxExitToHost(the);
 		break;
 	}
 }
@@ -169,10 +174,23 @@ static txSize fxRoundToPageSize(txMachine* the, txSize size)
 	return size;
 }
 
+static void adjustSpaceMeter(txMachine* the, txSize theSize)
+{
+	size_t previous = the->allocatedSpace;
+	the->allocatedSpace += theSize;
+	if (the->allocatedSpace > the->allocationLimit ||
+		// overflow?
+		the->allocatedSpace < previous) {
+		fxAbort(the, XS_NOT_ENOUGH_MEMORY_EXIT);
+	}
+}
+
 void* fxAllocateChunks(txMachine* the, txSize size)
 {
 	txByte* base;
 	txByte* result;
+	// fprintf(stderr, "fxAllocateChunks(%lu)\n", size);
+	adjustSpaceMeter(the, size);
 	if (the->firstBlock) {
 		base = (txByte*)(the->firstBlock);
 		result = (txByte*)(the->firstBlock->limit);
@@ -207,14 +225,33 @@ void fxFreeChunks(txMachine* the, void* theChunks)
 #endif
 }
 
+txSlot* fxAllocateSlots(txMachine* the, txSize theCount)
+{
+	// fprintf(stderr, "fxAllocateSlots(%u) * %d = %ld\n", theCount, sizeof(txSlot), theCount * sizeof(txSlot));
+	adjustSpaceMeter(the, theCount * sizeof(txSlot));
+	the->allocateSlotsCallCount += 1;
+	return (txSlot*)c_malloc(theCount * sizeof(txSlot));
+}
+
+void fxFreeSlots(txMachine* the, void* theSlots)
+{
+	c_free(theSlots);
+}
+
 void fxCreateMachinePlatform(txMachine* the)
 {
 #ifdef mxDebug
 	the->connection = mxNoSocket;
 #endif
-	the->abortStatus = 0;
-	the->promiseJobs = 0;
-	the->timerJobs = NULL;
+	// Original 10x strategy:
+	// SLOGFILE=out.slog agoric start local-chain
+	// jq -s '.|.[]|.dr[2].allocate' < out.slog|grep -v null|sort -u | sort -nr
+	// int MB = 1024 * 1024;
+	// int measured_max = 30 * MB;
+	// the->allocationLimit = 10 * measured_max;
+
+	size_t GB = 1024 * 1024 * 1024;
+	the->allocationLimit = 2 * GB;
 }
 
 void fxDeleteMachinePlatform(txMachine* the)
