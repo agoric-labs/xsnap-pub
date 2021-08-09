@@ -690,25 +690,14 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 	char fmt[] = ("." // OK
 				  "{"
 				  "\"compute\":%u,"
-				  "\"allocate\":%u,"
-				  "\"allocateChunksCalls\":%u,"
-				  "\"allocateSlotsCalls\":%u,"
-				  "\"garbageCollectionCount\":%u,"
-				  "\"mapSetAddCount\":%u,"
-				  "\"mapSetRemoveCount\":%u,"
-				  "\"maxBucketSize\":%u}"
+				  "\"allocate\":%u}"
 				  "\1" // separate meter info from result
 				  );
 	char numeral64[] = "12345678901234567890"; // big enough for 64bit numeral
 	char prefix[8 + sizeof fmt + 8 * sizeof numeral64];
-	// TODO: fxCollect counter
 	// Prepend the meter usage to the reply.
 	snprintf(prefix, sizeof(prefix) - 1, fmt,
-			 meterIndex, the->allocatedSpace,
-			 the->allocateChunksCallCount, the->allocateSlotsCallCount,
-			 the->garbageCollectionCount,
-			 the->mapSetAddCount, the->mapSetRemoveCount,
-			 the->maxBucketSize);
+			 meterIndex, the->allocatedSpace);
 	return fxWriteNetString(outStream, prefix, buf, length);
 }
 

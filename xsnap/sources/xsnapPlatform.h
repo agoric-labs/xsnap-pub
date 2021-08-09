@@ -75,13 +75,7 @@
 	void* waiterData; \
 	void* waiterLink; \
 	size_t allocationLimit; \
-	size_t allocatedSpace; \
-	uint32_t allocateChunksCallCount; \
-	uint32_t allocateSlotsCallCount; \
-	uint32_t garbageCollectionCount; \
-	uint32_t mapSetAddCount; \
-	uint32_t mapSetRemoveCount; \
-	uint32_t maxBucketSize;
+	size_t allocatedSpace;
 
 #define mxUseDefaultBuildKeys 1
 #define mxUseDefaultFindModule 1

@@ -230,7 +230,6 @@ txSlot* fxAllocateSlots(txMachine* the, txSize theCount)
 {
 	// fprintf(stderr, "fxAllocateSlots(%u) * %d = %ld\n", theCount, sizeof(txSlot), theCount * sizeof(txSlot));
 	adjustSpaceMeter(the, theCount * sizeof(txSlot));
-	the->allocateSlotsCallCount += 1;
 	return (txSlot*)c_malloc(theCount * sizeof(txSlot));
 }
 
