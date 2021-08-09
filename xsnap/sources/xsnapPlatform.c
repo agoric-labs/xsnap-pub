@@ -189,7 +189,6 @@ void* fxAllocateChunks(txMachine* the, txSize size)
 {
 	txByte* base;
 	txByte* result;
-	// fprintf(stderr, "fxAllocateChunks(%lu)\n", size);
 	adjustSpaceMeter(the, size);
 	if (the->firstBlock) {
 		base = (txByte*)(the->firstBlock);
@@ -209,7 +208,9 @@ void* fxAllocateChunks(txMachine* the, txSize size)
 #if mxWindows
 		if (!VirtualAlloc(base + current, size - current, MEM_COMMIT, PAGE_READWRITE))
 #else
-		if (mprotect(base + current, size - current, PROT_READ | PROT_WRITE))
+		if (size > mxReserveChunkSize)
+			result = NULL;
+		else if (mprotect(base + current, size - current, PROT_READ | PROT_WRITE))
 #endif
 			result = NULL;
 	}
