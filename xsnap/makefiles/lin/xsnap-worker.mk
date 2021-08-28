@@ -30,6 +30,7 @@ C_OPTIONS = \
 	-DXSNAP_TEST_RECORD=0 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
+	-DmxNoConsole=1 \
 	-DmxBoundsCheck=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
