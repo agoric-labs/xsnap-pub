@@ -43,10 +43,23 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 static int fxWriteNetString(FILE* outStream, char* prefix, char* buf, size_t len);
 static char* fxWriteNetStringError(int code);
 
+extern void xs_textdecoder(xsMachine *the);
+extern void xs_textdecoder_decode(xsMachine *the);
+extern void xs_textdecoder_get_encoding(xsMachine *the);
+extern void xs_textdecoder_get_ignoreBOM(xsMachine *the);
+extern void xs_textdecoder_get_fatal(xsMachine *the);
+
+extern void xs_textencoder(xsMachine *the);
+extern void xs_textencoder_encode(xsMachine *the);
+extern void xs_textencoder_encodeInto(xsMachine *the);
+
+extern void modInstallTextDecoder(xsMachine *the);
+extern void modInstallTextEncoder(xsMachine *the);
+
 // The order of the callbacks materially affects how they are introduced to
 // code that runs from a snapshot, so must be consistent in the face of
 // upgrade.
-#define mxSnapshotCallbackCount 7
+#define mxSnapshotCallbackCount 15
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand, // 0
 	xs_print, // 1
@@ -55,6 +68,17 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_performance_now, // 4
 	xs_currentMeterLimit, // 5
 	xs_resetMeter, // 6
+
+	xs_textdecoder, // 7
+	xs_textdecoder_decode, // 8
+	xs_textdecoder_get_encoding, // 9
+	xs_textdecoder_get_ignoreBOM, // 10
+	xs_textdecoder_get_fatal, // 11
+
+	xs_textencoder, // 12
+	xs_textencoder_encode, // 13
+	xs_textencoder_encodeInto, // 14
+
 	// fx_setInterval,
 	// fx_setTimeout,
 	// fx_clearTimer,
@@ -513,6 +537,9 @@ void xsBuildAgent(xsMachine* machine)
 // 	xsVar(0) = xsNewHostFunction(fx_print, 0);
 // 	xsDefine(xsResult, xsID("log"), xsVar(0), xsDontEnum);
 // 	xsDefine(xsGlobal, xsID("console"), xsResult, xsDontEnum);
+
+	modInstallTextDecoder(the);
+	modInstallTextEncoder(the);
 
 	xsEndHost(machine);
 }
