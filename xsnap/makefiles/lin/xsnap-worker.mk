@@ -30,7 +30,6 @@ C_OPTIONS = \
 	-DXSNAP_TEST_RECORD=0 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
-	-DmxNoConsole=1 \
 	-DmxBoundsCheck=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
@@ -48,7 +47,7 @@ C_OPTIONS += \
 ifeq ($(GOAL),debug)
 	C_OPTIONS += -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
 else
-	C_OPTIONS += -O3
+	C_OPTIONS += -DmxNoConsole=1 -O3
 endif
 
 LIBRARIES = -ldl -lm -lpthread
