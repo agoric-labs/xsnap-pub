@@ -110,10 +110,15 @@ OBJECTS = \
 	$(TMP_DIR)/xsType.o \
 	$(TMP_DIR)/xsdtoa.o \
 	$(TMP_DIR)/xsre.o \
+	$(TMP_DIR)/xsmc.o \
+	$(TMP_DIR)/textdecoder.o \
+	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/xsnapPlatform.o \
 	$(TMP_DIR)/xsnap-worker.o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
+VPATH += $(MODDABLE)/modules/data/text/decoder
+VPATH += $(MODDABLE)/modules/data/text/encoder
 
 build: $(TMP_DIR) $(BIN_DIR) $(BIN_DIR)/$(NAME)
 
@@ -125,7 +130,7 @@ $(BIN_DIR):
 
 $(BIN_DIR)/$(NAME): $(OBJECTS)
 	@echo "#" $(NAME) $(GOAL) ": cc" $(@F)
-	$(CC) $(LINK_OPTIONS) $(LIBRARIES) $(OBJECTS) -o $@
+	$(CC) $(LINK_OPTIONS) $(OBJECTS) $(LIBRARIES) -o $@
 
 $(OBJECTS): $(TLS_DIR)/xsnap.h
 $(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
