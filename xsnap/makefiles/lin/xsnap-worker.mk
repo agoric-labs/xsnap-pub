@@ -102,12 +102,14 @@ OBJECTS = \
 	$(TMP_DIR)/xsmc.o \
 	$(TMP_DIR)/textdecoder.o \
 	$(TMP_DIR)/textencoder.o \
+	$(TMP_DIR)/modBase64.o \
 	$(TMP_DIR)/xsnapPlatform.o \
 	$(TMP_DIR)/xsnap-worker.o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
 VPATH += $(MODDABLE)/modules/data/text/decoder
 VPATH += $(MODDABLE)/modules/data/text/encoder
+VPATH += $(MODDABLE)/modules/data/base64
 
 build: $(TMP_DIR) $(BIN_DIR) $(BIN_DIR)/$(NAME)
 

@@ -56,10 +56,14 @@ extern void xs_textencoder_encodeInto(xsMachine *the);
 extern void modInstallTextDecoder(xsMachine *the);
 extern void modInstallTextEncoder(xsMachine *the);
 
+extern void xs_base64_encode(xsMachine *the);
+extern void xs_base64_decode(xsMachine *the);
+extern void modInstallBase64(xsMachine *the);
+
 // The order of the callbacks materially affects how they are introduced to
 // code that runs from a snapshot, so must be consistent in the face of
 // upgrade.
-#define mxSnapshotCallbackCount 15
+#define mxSnapshotCallbackCount 17
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand, // 0
 	xs_print, // 1
@@ -78,6 +82,9 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_textencoder, // 12
 	xs_textencoder_encode, // 13
 	xs_textencoder_encodeInto, // 14
+
+	xs_base64_encode, // 15
+	xs_base64_decode, // 16
 
 	// fx_setInterval,
 	// fx_setTimeout,
@@ -533,13 +540,14 @@ void xsBuildAgent(xsMachine* machine)
 	xsResult = xsNewHostFunction(xs_resetMeter, 1);
 	xsDefine(xsGlobal, xsID("resetMeter"), xsResult, xsDontEnum);
 
+	modInstallTextDecoder(the);
+	modInstallTextEncoder(the);
+	modInstallBase64(the);
+
 // 	xsResult = xsNewObject();
 // 	xsVar(0) = xsNewHostFunction(fx_print, 0);
 // 	xsDefine(xsResult, xsID("log"), xsVar(0), xsDontEnum);
 // 	xsDefine(xsGlobal, xsID("console"), xsResult, xsDontEnum);
-
-	modInstallTextDecoder(the);
-	modInstallTextEncoder(the);
 
 	xsEndHost(machine);
 }
