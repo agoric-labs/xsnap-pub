@@ -2,14 +2,19 @@
 
 #define SNAPSHOT_SIGNATURE "xsnap 1"
 
+extern void fxDumpSnapshot(xsMachine* the, xsSnapshot* snapshot);
+
 static void xsBuildAgent(xsMachine* the);
-static void xsPlayTest(xsMachine* the);
 static void xsPrintUsage();
+static void xsReplay(xsMachine* machine);
 
 static void xs_clearTimer(xsMachine* the);
+static void xs_currentMeterLimit(xsMachine* the);
 static void xs_gc(xsMachine* the);
 static void xs_issueCommand(xsMachine* the);
+static void xs_performance_now(xsMachine* the);
 static void xs_print(xsMachine* the);
+static void xs_resetMeter(xsMachine* the);
 static void xs_setImmediate(xsMachine* the);
 static void xs_setInterval(xsMachine* the);
 static void xs_setTimeout(xsMachine* the);
@@ -68,6 +73,7 @@ static int xsSnapshopWrite(void* stream, void* address, size_t size)
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
 	
+static xsUnsignedValue gxCurrentMeter = 0;
 static xsBooleanValue gxMeteringPrint = 0;
 static xsUnsignedValue gxMeteringLimit = 0;
 #ifdef mxMetering
@@ -85,6 +91,7 @@ static xsBooleanValue xsMeteringCallback(xsMachine* the, xsUnsignedValue index)
 int main(int argc, char* argv[]) 
 {
 	int argi;
+	int argd = 0;
 	int argr = 0;
 	int argw = 0;
 	int error = 0;
@@ -127,7 +134,17 @@ int main(int argc, char* argv[])
 	for (argi = 1; argi < argc; argi++) {
 		if (argv[argi][0] != '-')
 			continue;
-		if (!strcmp(argv[argi], "-e"))
+		if (!strcmp(argv[argi], "-d")) {
+			argi++;
+			if (argi < argc)
+				argd = argi;
+			else {
+				xsPrintUsage();
+				return 1;
+			}
+			option = 5;
+		}
+		else if (!strcmp(argv[argi], "-e"))
 			option = 1;
 		else if (!strcmp(argv[argi], "-h"))
 			xsPrintUsage();
@@ -208,8 +225,21 @@ int main(int argc, char* argv[])
 	}
 	xsBeginMetering(machine, xsMeteringCallback, interval);
 	{
-		if (option == 4) {
-			xsPlayTest(machine);
+		if (option == 5) {
+			snapshot.stream = fopen(argv[argd], "rb");
+			if (snapshot.stream) {
+				fxDumpSnapshot(machine, &snapshot);
+				fclose(snapshot.stream);
+			}
+			else
+				snapshot.error = errno;
+			if (snapshot.error) {
+				fprintf(stderr, "cannot dump snapshot %s: %s\n", argv[argr], strerror(snapshot.error));
+				return 1;
+			}
+		}
+		else if (option == 4) {
+			xsReplay(machine);
 		}
 		else {
 			xsBeginHost(machine);
@@ -297,9 +327,8 @@ void xsBuildAgent(xsMachine* machine)
 	xsResult = xsNewHostFunction(xs_issueCommand, 1);
 	xsDefine(xsGlobal, xsID("issueCommand"), xsResult, xsDontEnum);
 	
-	xsVar(0) = xsGet(xsGlobal, xsID("Date"));
-	xsVar(0) = xsGet(xsVar(0), xsID("now"));
 	xsResult = xsNewObject();
+	xsVar(0) = xsNewHostFunction(xs_performance_now, 0);
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
 	
@@ -315,59 +344,6 @@ void xsBuildAgent(xsMachine* machine)
 	xsDefine(xsGlobal, xsID("purify"), xsResult, xsDontEnum);
 
 	xsEndHost(machine);
-}
-
-void xsPlayTest(xsMachine* machine)
-{
-	int index = 0;
-	char* extensions[2] = { ".js", ".json" };
-	for (;;) {
-		int which;
-		xsBeginHost(machine);
-		for (which = 0; which < 2; which++) {
-			char path[C_PATH_MAX];
-			sprintf(path, "param-%d%s", index, extensions[which]);
-			{
-			#if mxWindows
-				DWORD attributes = GetFileAttributes(path);
-				if ((attributes != 0xFFFFFFFF) && (!(attributes & FILE_ATTRIBUTE_DIRECTORY))) {
-			#else
-				struct stat a_stat;
-				if ((stat(path, &a_stat) == 0) && (S_ISREG(a_stat.st_mode))) {
-			#endif
-					fprintf(stderr, "### %s\n", path);
-					FILE* file = fopen(path, "rb");
-					if (file) {
-						size_t length;
-						fseek(file, 0, SEEK_END);
-						length = ftell(file);
-						fseek(file, 0, SEEK_SET);
-						if (which == 0) {
-							xsStringValue string;
-							xsResult = xsStringBuffer(NULL, (xsIntegerValue)length);
-							string = xsToString(xsResult);
-							length = fread(string, 1, length, file);
-							string[length] = 0;
-							fclose(file);
-							xsCall1(xsGlobal, xsID("eval"), xsResult);
-						}
-						else {
-							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
-							fclose(file);
-							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
-						}
-					}
-					index++;
-					break;
-				}
-			}
-		}
-		xsEndHost(machine);
-		if (which == 2)
-			break;
-		fxRunLoop(machine);
-	}
 }
 
 void xsPrintUsage()
@@ -387,6 +363,70 @@ void xsPrintUsage()
 	printf("\telse strings are paths to scripts\n");
 }
 
+static int gxStep = 0;
+
+void xsReplay(xsMachine* machine)
+{
+	char path[C_PATH_MAX];
+	char* names[5] = { "-evaluate.dat", "-issueCommand.dat", "-command.dat", "-reply.dat", "-options.json", };
+	for (;;) {
+		int which;
+		xsBeginHost(machine);
+		for (which = 0; which < 5; which++) {
+			sprintf(path, "%05d%s", gxStep, names[which]);
+			{
+			#if mxWindows
+				DWORD attributes = GetFileAttributes(path);
+				if ((attributes != 0xFFFFFFFF) && (!(attributes & FILE_ATTRIBUTE_DIRECTORY)))
+			#else
+				struct stat a_stat;
+				if ((stat(path, &a_stat) == 0) && (S_ISREG(a_stat.st_mode)))
+			#endif
+				{
+					fprintf(stderr, "### %s\n", path);
+					FILE* file = fopen(path, "rb");
+					if (file) {
+						size_t length;
+						fseek(file, 0, SEEK_END);
+						length = ftell(file);
+						fseek(file, 0, SEEK_SET);
+						if (which == 0) {
+							xsStringValue string;
+							xsResult = xsStringBuffer(NULL, (xsIntegerValue)length);
+							string = xsToString(xsResult);
+							length = fread(string, 1, length, file);
+							string[length] = 0;
+							fclose(file);
+							xsCall1(xsGlobal, xsID("eval"), xsResult);
+
+						}
+						else if (which == 1) {
+							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
+							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
+							fclose(file);
+							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
+
+						}
+					}
+					break;
+				}
+			}
+		}
+		xsEndHost(machine);
+		if (which == 5)
+			break;
+		gxStep++;
+		fxRunLoop(machine);
+	}
+}
+
+void xs_currentMeterLimit(xsMachine* the)
+{
+#if mxMetering
+	xsResult = xsInteger(gxCurrentMeter);
+#endif
+}
+
 void xs_gc(xsMachine* the)
 {
 	xsCollectGarbage();
@@ -394,22 +434,30 @@ void xs_gc(xsMachine* the)
 
 void xs_issueCommand(xsMachine* the)
 {
-	static int index = 0;
 	char path[C_PATH_MAX];
 	FILE* file;
 	size_t length;
-	sprintf(path, "reply-%d.json", index);
+	sprintf(path, "%05d-command.dat", gxStep);
 	fprintf(stderr, "### %s\n", path);
+	gxStep++;
+	sprintf(path, "%05d-reply.dat", gxStep);
+	fprintf(stderr, "### %s\n", path);
+	gxStep++;
 	file = fopen(path, "rb");
-	if (file) {
-		fseek(file, 0, SEEK_END);
-		length = ftell(file);
-		fseek(file, 0, SEEK_SET);
-		xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-		length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
-		fclose(file);
-	}
-	index++;
+	if (!file) xsUnknownError("cannot open %s", path);
+	fseek(file, 0, SEEK_END);
+	length = ftell(file);
+	fseek(file, 0, SEEK_SET);
+	xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
+	length = fread(xsToArrayBuffer(xsResult), 1, length, file);
+	fclose(file);
+}
+
+void xs_performance_now(xsMachine *the)
+{
+	c_timeval tv;
+	c_gettimeofday(&tv, NULL);
+	xsResult = xsNumber((double)(tv.tv_sec * 1000.0) + ((double)(tv.tv_usec) / 1000.0));
 }
 
 void xs_print(xsMachine* the)
@@ -428,6 +476,19 @@ void xs_print(xsMachine* the)
 		fprintf(stdout, "%s", xsToString(xsArg(i)));
 	}
 	fprintf(stdout, "\n");
+}
+
+void xs_resetMeter(xsMachine* the)
+{
+#if mxMetering
+	xsIntegerValue argc = xsToInteger(xsArgc);
+	if (argc < 2) {
+		xsTypeError("expected newMeterLimit, newMeterIndex");
+	}
+	xsResult = xsInteger(xsGetCurrentMeter(the));
+	gxCurrentMeter = xsToInteger(xsArg(0));
+	xsSetCurrentMeter(the, xsToInteger(xsArg(1)));
+#endif
 }
 
 void xs_setImmediate(xsMachine* the)
