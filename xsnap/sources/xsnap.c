@@ -14,7 +14,24 @@ static void xs_setImmediate(xsMachine* the);
 static void xs_setInterval(xsMachine* the);
 static void xs_setTimeout(xsMachine* the);
 
-#define mxSnapshotCallbackCount 10
+extern void xs_textdecoder(xsMachine *the);
+extern void xs_textdecoder_decode(xsMachine *the);
+extern void xs_textdecoder_get_encoding(xsMachine *the);
+extern void xs_textdecoder_get_ignoreBOM(xsMachine *the);
+extern void xs_textdecoder_get_fatal(xsMachine *the);
+
+extern void xs_textencoder(xsMachine *the);
+extern void xs_textencoder_encode(xsMachine *the);
+extern void xs_textencoder_encodeInto(xsMachine *the);
+
+extern void modInstallTextDecoder(xsMachine *the);
+extern void modInstallTextEncoder(xsMachine *the);
+
+extern void xs_base64_encode(xsMachine *the);
+extern void xs_base64_decode(xsMachine *the);
+extern void modInstallBase64(xsMachine *the);
+
+#define mxSnapshotCallbackCount 20
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand,
 	xs_clearTimer,
@@ -26,6 +43,19 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_lockdown,
 	fx_harden,
 	fx_purify,
+
+	xs_textdecoder,
+	xs_textdecoder_decode,
+	xs_textdecoder_get_encoding,
+	xs_textdecoder_get_ignoreBOM,
+	xs_textdecoder_get_fatal,
+
+	xs_textencoder,
+	xs_textencoder_encode,
+	xs_textencoder_encodeInto,
+
+	xs_base64_encode,
+	xs_base64_decode,
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
@@ -273,6 +303,10 @@ void xsBuildAgent(xsMachine* machine)
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
 	
+	modInstallTextDecoder(the);
+	modInstallTextEncoder(the);
+	modInstallBase64(the);
+
 	xsResult = xsNewHostFunction(fx_harden, 1);
 	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(fx_lockdown, 0);
