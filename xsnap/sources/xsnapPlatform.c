@@ -1078,3 +1078,700 @@ void fxVerifyProperty(txMachine* the, txVerifyList *list, txSlot* property, txSl
 		break;
 	}
 }
+
+extern void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot);
+
+typedef void (*txDumpChunk)(FILE* file, txByte* data, txSize size);
+
+#define mxThrowIf(_ERROR) { if (_ERROR) { snapshot->error = _ERROR; fxJump(the); } }
+
+static void fxDumpChunk(txSlot* slot, txByte* block);
+static void fxDumpChunkAddress(FILE* file, void* address);
+static void fxDumpChunkArray(FILE* file, txByte* data, txSize size);
+static void fxDumpChunkData(FILE* file, txByte* data, txSize size);
+static void fxDumpChunkString(FILE* file, txByte* data, txSize size);
+static void fxDumpChunkTable(FILE* file, txByte* data, txSize size); 
+static void fxDumpID(FILE* file, txID id);
+static void fxDumpNumber(FILE* file, txNumber value);
+static void fxDumpSlot(FILE* file, txSlot* slot);
+static void fxDumpSlotAddress(FILE* file, void* address);
+static void fxDumpSlotTable(FILE* file, txByte* buffer, txSize size);
+
+void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
+{
+	Atom atom;
+	txByte byte;
+	txCreation creation;
+	Atom blockAtom;
+	txByte* block = C_NULL;
+	txByte* blockLimit;
+	Atom heapAtom;
+	txSlot* heap = C_NULL;
+	txSlot* heapLimit;
+	Atom stackAtom;
+	txSlot* stack = C_NULL;
+	txSlot* stackLimit;
+	
+	txSlot* current;
+	
+	txByte* buffer = C_NULL;
+	txByte* address;
+	txSize offset, size;
+	txString string;
+
+	mxTry(the) {
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
+		
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
+		mxThrowIf((*snapshot->read)(snapshot->stream, &byte, 1));
+		fprintf(stderr, "\t%d.", byte);
+		mxThrowIf((*snapshot->read)(snapshot->stream, &byte, 1));
+		fprintf(stderr, "%d.", byte);
+		mxThrowIf((*snapshot->read)(snapshot->stream, &byte, 1));
+		fprintf(stderr, "%d ", byte);
+		mxThrowIf((*snapshot->read)(snapshot->stream, &byte, 1));
+		fprintf(stderr, "(%d)\n", byte);
+		
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		buffer = c_malloc(atom.atomSize);
+		mxThrowIf(buffer == C_NULL);
+		mxThrowIf((*snapshot->read)(snapshot->stream, buffer, atom.atomSize));
+		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
+		fprintf(stderr, "\t%s\n", (txString)buffer);
+		c_free(buffer);
+	
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		mxThrowIf((*snapshot->read)(snapshot->stream, &creation, sizeof(txCreation)));
+		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
+		fprintf(stderr, "\tinitialChunkSize: %d\n", creation.initialChunkSize);
+		fprintf(stderr, "\tincrementalChunkSize: %d\n", creation.incrementalChunkSize);
+		fprintf(stderr, "\tinitialHeapCount: %d\n", creation.initialHeapCount);
+		fprintf(stderr, "\tincrementalHeapCount: %d\n", creation.incrementalHeapCount);
+		fprintf(stderr, "\tstackCount: %d\n", creation.stackCount);
+		fprintf(stderr, "\tkeyCount: %d\n", creation.keyCount);
+		fprintf(stderr, "\tnameModulo: %d\n", creation.nameModulo);
+		fprintf(stderr, "\tsymbolModulo: %d\n", creation.symbolModulo);
+		fprintf(stderr, "\tparserBufferSize: %d\n", creation.parserBufferSize);
+		fprintf(stderr, "\tparserTableModulo: %d\n", creation.parserTableModulo);
+		fprintf(stderr, "\tstaticSize: %d\n", creation.staticSize);
+
+		mxThrowIf((*snapshot->read)(snapshot->stream, &blockAtom, sizeof(Atom)));
+		blockAtom.atomSize = ntohl(blockAtom.atomSize) - 8;
+		block = c_malloc(blockAtom.atomSize);
+		mxThrowIf(block == C_NULL);
+		mxThrowIf((*snapshot->read)(snapshot->stream, block, blockAtom.atomSize));
+		blockLimit = block + blockAtom.atomSize;
+
+		mxThrowIf((*snapshot->read)(snapshot->stream, &heapAtom, sizeof(Atom)));
+		heapAtom.atomSize = ntohl(heapAtom.atomSize) - 8;
+		heap = c_malloc(sizeof(txSlot) + heapAtom.atomSize);
+		mxThrowIf(heap == C_NULL);
+		c_memset(heap, 0, sizeof(txSlot));
+		mxThrowIf((*snapshot->read)(snapshot->stream, heap + 1, heapAtom.atomSize));
+		heapLimit = heap + 1 + (heapAtom.atomSize / sizeof(txSlot));
+		
+		mxThrowIf((*snapshot->read)(snapshot->stream, &stackAtom, sizeof(Atom)));
+		stackAtom.atomSize = ntohl(stackAtom.atomSize) - 8;
+		stack = c_malloc(stackAtom.atomSize);
+		mxThrowIf(stack == C_NULL);
+		mxThrowIf((*snapshot->read)(snapshot->stream, stack, stackAtom.atomSize));
+		stackLimit = stack + (stackAtom.atomSize / sizeof(txSlot));
+		
+		current = heap;
+		while (current < heapLimit) {
+			fxDumpChunk(current, block);
+			current++;
+		}
+		current = stack;
+		while (current < stackLimit) {
+			fxDumpChunk(current, block);
+			current++;
+		}
+
+		fprintf(stderr, "%4.4s %d\n", (txString)&(blockAtom.atomType), blockAtom.atomSize + 8);
+		address = block;
+		offset = 0;
+		while (offset < blockAtom.atomSize) {
+			txChunk* chunk = (txChunk*)address;
+			fprintf(stderr, "\t<%8.8lu> %8d ", offset + sizeof(txChunk), chunk->size);
+			if (chunk->temporary)
+				(*(txDumpChunk)(chunk->temporary))(stderr, address + sizeof(txChunk), chunk->size - sizeof(txChunk));
+			else
+				fprintf(stderr, "\n\t\t?");
+			fprintf(stderr, "\n");
+			address += chunk->size;
+			offset += chunk->size;
+		}
+		
+		fprintf(stderr, "%4.4s %d\n", (txString)&(heapAtom.atomType), heapAtom.atomSize + 8);
+		current = heap;
+		offset = 0;
+		while (current < heapLimit) {
+			fprintf(stderr, "\t[%8.8d] ", offset);
+			fxDumpSlotAddress(stderr, current->next);
+			fprintf(stderr, " ");
+			fxDumpSlot(stderr, current);
+			fprintf(stderr, "\n");
+			current++;
+			offset++;
+		}
+		
+		fprintf(stderr, "%4.4s %d\n", (txString)&(stackAtom.atomType), stackAtom.atomSize + 8);
+		current = stack;
+		while (current < stackLimit) {
+			fprintf(stderr, "\t           ");
+			fxDumpSlotAddress(stderr, current->next);
+			fprintf(stderr, " ");
+			fxDumpSlot(stderr, current);
+			fprintf(stderr, "\n");
+			current++;
+		}
+
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		buffer = c_malloc(atom.atomSize);
+		mxThrowIf(buffer == C_NULL);
+		mxThrowIf((*snapshot->read)(snapshot->stream, buffer, atom.atomSize));
+		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
+		address = buffer;
+		offset = 0;
+		size = atom.atomSize / sizeof(txSlot*);
+		while (offset < size) {
+			txSlot* slot = *((txSlot**)address);
+			fprintf(stderr, "\tID_%6.6d", offset);
+			if (slot) {
+				fprintf(stderr, " [%8.8zu]", (size_t)slot);
+				slot = ((txSlot*)heap) + (size_t)slot;
+				string = ((txString)block) + (size_t)(slot->value.key.string);
+				fprintf(stderr, " %s\n", string);
+			}
+			else
+				fprintf(stderr, " [        ]\n");
+			address += sizeof(txSlot*);
+			offset++;
+		}
+		c_free(buffer);
+		buffer = C_NULL;
+
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		buffer = c_malloc(atom.atomSize);
+		mxThrowIf(buffer == C_NULL);
+		mxThrowIf((*snapshot->read)(snapshot->stream, buffer, atom.atomSize));
+		fprintf(stderr, "%4.4s %d", (txString)&(atom.atomType), atom.atomSize + 8);
+		fxDumpSlotTable(stderr, buffer, atom.atomSize);
+		fprintf(stderr, "\n");
+
+		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
+		atom.atomSize = ntohl(atom.atomSize) - 8;
+		buffer = c_malloc(atom.atomSize);
+		mxThrowIf(buffer == C_NULL);
+		mxThrowIf((*snapshot->read)(snapshot->stream, buffer, atom.atomSize));
+		fprintf(stderr, "%4.4s %d", (txString)&(atom.atomType), atom.atomSize + 8);
+		fxDumpSlotTable(stderr, buffer, atom.atomSize);
+		fprintf(stderr, "\n");
+		
+		c_free(stack);
+		c_free(heap);
+		c_free(block);
+	}
+	mxCatch(the) {
+		if (buffer)
+			c_free(buffer);
+		if (stack)
+			c_free(stack);
+		if (heap)
+			c_free(heap);
+		if (block)
+			c_free(block);
+	}
+}
+
+void fxDumpChunk(txSlot* slot, txByte* block) 
+{
+	txChunk* chunk;
+	switch (slot->kind) {
+	case XS_STRING_KIND: {
+		chunk = (txChunk*)(block + (size_t)(slot->value.string) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkString;
+	} break;
+	case XS_BIGINT_KIND: {
+		chunk = (txChunk*)(block + (size_t)(slot->value.bigint.data) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkData;
+	} break;
+	case XS_ARRAY_KIND: {
+		if (slot->value.array.address) {
+			chunk = (txChunk*)(block + (size_t)(slot->value.array.address) - sizeof(txChunk));
+			chunk->temporary = (txByte*)fxDumpChunkArray;
+			
+			{
+				txIndex size = chunk->size / sizeof(txSlot);
+				txSlot* item = (txSlot*)(block + (size_t)(slot->value.array.address));
+				while (size) {
+					fxDumpChunk(item, block);
+					size--;
+					item++;
+				}
+			}
+			
+		}
+	} break;
+	case XS_ARRAY_BUFFER_KIND: {
+		if (slot->value.arrayBuffer.address) {
+			chunk = (txChunk*)(block + (size_t)(slot->value.arrayBuffer.address) - sizeof(txChunk));
+			chunk->temporary = (txByte*)fxDumpChunkData;
+		}
+	} break;
+	case XS_CODE_KIND:  {
+		chunk = (txChunk*)(block + (size_t)(slot->value.code.address) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkData;
+	} break;
+	case XS_GLOBAL_KIND: {
+		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkTable;
+	} break;
+	case XS_MAP_KIND: {
+		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkTable;
+	} break;
+	case XS_REGEXP_KIND: {
+		if (slot->value.regexp.code) {
+			chunk = (txChunk*)(block + (size_t)(slot->value.regexp.code) - sizeof(txChunk));
+			chunk->temporary = (txByte*)fxDumpChunkData;
+		}
+		if (slot->value.regexp.data) {
+			chunk = (txChunk*)(block + (size_t)(slot->value.regexp.data) - sizeof(txChunk));
+			chunk->temporary = (txByte*)fxDumpChunkData;
+		}
+	} break;
+	case XS_SET_KIND: {
+		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkTable;
+	} break;
+	case XS_KEY_KIND: {
+		if (slot->value.key.string) {
+			chunk = (txChunk*)(block + (size_t)(slot->value.key.string) - sizeof(txChunk));
+			chunk->temporary = (txByte*)fxDumpChunkString;
+		}
+	} break;
+	default:
+		break;
+	}
+}
+
+void fxDumpChunkAddress(FILE* file, void* address) 
+{
+	if (address)
+		fprintf(file, "<%8.8zu>", (size_t)address);
+	else
+		fprintf(file, "<        >");
+}
+
+void fxDumpChunkArray(FILE* file, txByte* data, txSize size) 
+{
+	txSize offset = 0;
+	txSlot* slot = (txSlot*)data;
+	size /= sizeof(txSlot);
+	while (offset < size) {
+		fprintf(file, "\n\t\t%8zu ", (size_t)slot->next);
+		fxDumpSlot(file, slot);
+		offset++;
+		slot++;
+	}
+}
+
+void fxDumpChunkData(FILE* file, txByte* data, txSize size) 
+{
+	txSize offset = 0;
+	txU1* address = (txU1*)data;
+	while (offset < size) {
+		if (offset % 32)
+			fprintf(file, " ");
+		else
+			fprintf(file, "\n\t\t");
+		fprintf(file, "%2.2x", address[offset]);
+		offset++;
+	}
+}
+
+void fxDumpChunkString(FILE* file, txByte* data, txSize size) 
+{
+	fprintf(file, " %s", data);
+}
+
+void fxDumpChunkTable(FILE* file, txByte* data, txSize size) 
+{
+	txSize offset = 0;
+	txSlot** address = (txSlot**)data;
+	size /= sizeof(txSlot*);
+	while (offset < size) {
+		txSlot* slot = *((txSlot**)address);
+		if (offset % 8)
+			fprintf(file, " ");
+		else
+			fprintf(file, "\n\t\t");
+		fxDumpSlotAddress(file, slot);
+		offset++;
+		address++;
+	}
+}
+
+void fxDumpID(FILE* file, txID id)
+{
+	if (id < 0)
+		fprintf(file, "ID_?     ");
+	else if (id == 0)
+		fprintf(file, "         ");
+	else
+		fprintf(file, "ID_%6.6d", id);
+}
+
+void fxDumpNumber(FILE* file, txNumber value) 
+{
+	switch (c_fpclassify(value)) {
+	case C_FP_INFINITE:
+		if (value < 0)
+			fprintf(file, "-C_INFINITY");
+		else
+			fprintf(file, "C_INFINITY");
+		break;
+	case C_FP_NAN:
+		fprintf(file, "C_NAN");
+		break;
+	default:
+		fprintf(file, "%.20e", value);
+		break;
+	}
+}
+
+void fxDumpSlot(FILE* file, txSlot* slot)
+{
+	if (slot->flag & XS_MARK_FLAG)
+		fprintf(file, "M");
+	else
+		fprintf(file, "_");
+	if (slot->kind == XS_INSTANCE_KIND) {
+		if (slot->flag & XS_DONT_MARSHALL_FLAG)
+			fprintf(file, "H");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_LEVEL_FLAG)
+			fprintf(file, "L");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_DONT_PATCH_FLAG)
+			fprintf(file, "P");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_FIELD_FLAG)
+			fprintf(file, "F");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_CAN_CONSTRUCT_FLAG)
+			fprintf(file, "N");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_CAN_CALL_FLAG)
+			fprintf(file, "C");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_EXOTIC_FLAG)
+			fprintf(file, "X");
+		else
+			fprintf(file, "_");
+	}
+	else {
+		if (slot->flag & XS_DERIVED_FLAG)
+			fprintf(file, "H");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_BASE_FLAG)
+			fprintf(file, "B");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_INSPECTOR_FLAG)
+			fprintf(file, "L");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_DONT_SET_FLAG)
+			fprintf(file, "S");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_DONT_ENUM_FLAG)
+			fprintf(file, "E");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_DONT_DELETE_FLAG)
+			fprintf(file, "D");
+		else
+			fprintf(file, "_");
+		if (slot->flag & XS_INTERNAL_FLAG)
+			fprintf(file, "I");
+		else
+			fprintf(file, "_");
+	
+	}
+	fprintf(file, " ");
+	fxDumpID(file, slot->ID);
+	fprintf(file, " ");
+	switch (slot->kind) {
+	case XS_UNINITIALIZED_KIND: {
+		fprintf(file, "unititialized");
+	} break;
+	case XS_UNDEFINED_KIND: {
+		fprintf(file, "undefined");
+	} break;
+	case XS_NULL_KIND: {
+		fprintf(file, "null");
+	} break;
+	case XS_BOOLEAN_KIND: {
+		fprintf(file, "boolean = %d", slot->value.boolean);
+	} break;
+	case XS_INTEGER_KIND: {
+		fprintf(file, "integer = %d", slot->value.integer);
+	} break;
+	case XS_NUMBER_KIND: {
+		fprintf(file, "number = ");
+		fxDumpNumber(file, slot->value.number);
+	} break;
+	case XS_STRING_KIND: {
+		fprintf(file, "string = ");
+		fxDumpChunkAddress(file, slot->value.string);
+	} break;
+	case XS_SYMBOL_KIND: {
+		fprintf(file, "symbol = ");
+		fxDumpID(file, slot->value.symbol);
+	} break;
+	case XS_BIGINT_KIND: {
+		fprintf(file, "bigint = { .data = ");
+		fxDumpChunkAddress(file, slot->value.bigint.data);
+		fprintf(file, ", .size = %d, ", slot->value.bigint.size);
+		fprintf(file, ".sign = %d, ", slot->value.bigint.sign);
+		fprintf(file, " }");
+	} break;
+	case XS_REFERENCE_KIND: {
+		fprintf(file, "reference = ");
+		fxDumpSlotAddress(file, slot->value.reference);
+	} break;
+	case XS_CLOSURE_KIND: {
+		fprintf(file, "closure = ");
+		fxDumpSlotAddress(file, slot->value.closure);
+	} break; 
+	case XS_INSTANCE_KIND: {
+		fprintf(file, "instance = { .garbage = ");
+		fxDumpSlotAddress(file, slot->value.instance.garbage);
+		fprintf(file, ", .prototype = ");
+		fxDumpSlotAddress(file, slot->value.instance.prototype);
+		fprintf(file, " }");
+	} break;
+	case XS_ARRAY_KIND: {
+		fprintf(file, "array = { .address = ");
+		fxDumpChunkAddress(file, slot->value.array.address);
+		fprintf(file, ", .length = %d }", (int)slot->value.array.length);
+	} break;
+	case XS_ARRAY_BUFFER_KIND: {
+		fprintf(file, "arrayBuffer = { .address = ");
+		fxDumpChunkAddress(file, slot->value.arrayBuffer.address);
+		fprintf(file, ", length = %d }", (int)slot->value.arrayBuffer.length);
+	} break;
+	case XS_CALLBACK_KIND: {
+		fprintf(file, "callback");
+	} break;
+	case XS_CODE_KIND:  {
+		fprintf(file, "code = { .address = ");
+		fxDumpChunkAddress(file, slot->value.code.address);
+		fprintf(file, ", .closures = ");
+		fxDumpSlotAddress(file, slot->value.code.closures);
+		fprintf(file, " }");
+	} break;
+	case XS_DATE_KIND: {
+		fprintf(file, "date = ");
+		fxDumpNumber(file, slot->value.number);
+	} break;
+	case XS_DATA_VIEW_KIND: {
+		fprintf(file, "dataView = { .offset = %d, .size = %d }", slot->value.dataView.offset, slot->value.dataView.size);
+	} break;
+	case XS_FINALIZATION_CELL_KIND: {
+		fprintf(file, "finalizationCell = { .target = ");
+		fxDumpSlotAddress(file, slot->value.finalizationCell.target);
+		fprintf(file, ", .token = ");
+		fxDumpSlotAddress(file, slot->value.finalizationCell.token);
+		fprintf(file, " }");
+	} break;
+	case XS_FINALIZATION_REGISTRY_KIND: {
+		fprintf(file, "finalizationRegistry = { .target = ");
+		fxDumpSlotAddress(file, slot->value.finalizationRegistry.callback);
+		fprintf(file, ", .flags = %d }", slot->value.finalizationRegistry.flags);
+	} break;
+	case XS_GLOBAL_KIND: {
+		fprintf(file, "global = { .address = ");
+		fxDumpChunkAddress(file, slot->value.table.address);
+		fprintf(file, ", .length = %d }", (int)slot->value.table.length);
+	} break;
+	case XS_HOST_KIND: {
+		fprintf(file, ".kind = XS_HOST_KIND}, ");
+	} break;
+	case XS_MAP_KIND: {
+		fprintf(file, "map = { .address = ");
+		fxDumpChunkAddress(file, slot->value.table.address);
+		fprintf(file, ", .length = %d }", (int)slot->value.table.length);
+	} break;
+	case XS_MODULE_KIND: {
+		fprintf(file, "module = { .realm = ");
+		fxDumpSlotAddress(file, slot->value.module.realm);
+		fprintf(file, ", .id = ");
+		fxDumpID(file, slot->value.module.id);
+		fprintf(file, " }");
+	} break;
+	case XS_PROGRAM_KIND: {
+		fprintf(file, "program = { .realm = ");
+		fxDumpSlotAddress(file, slot->value.module.realm);
+		fprintf(file, ", .id = ");
+		fxDumpID(file, slot->value.module.id);
+		fprintf(file, " }");
+	} break;
+	case XS_PROMISE_KIND: {
+		fprintf(file, "promise = %d }", slot->value.integer);
+	} break;
+	case XS_PROXY_KIND: {
+		fprintf(file, "proxy = { .handler = ");
+		fxDumpSlotAddress(file, slot->value.proxy.handler);
+		fprintf(file, ", .target = ");
+		fxDumpSlotAddress(file, slot->value.proxy.target);
+		fprintf(file, " }");
+	} break;
+	case XS_REGEXP_KIND: {
+		fprintf(file, "regexp = { .code = ");
+		fxDumpChunkAddress(file, slot->value.regexp.code);
+		fprintf(file, ", .data = ");
+		fxDumpChunkAddress(file, slot->value.regexp.data);
+		fprintf(file, " }");
+	} break;
+	case XS_SET_KIND: {
+		fprintf(file, "set = { .address = ");
+		fxDumpChunkAddress(file, slot->value.table.address);
+		fprintf(file, ", .length = %d }", (int)slot->value.table.length);
+	} break;
+	case XS_TYPED_ARRAY_KIND: {
+		fprintf(file, ".kind = XS_TYPED_ARRAY_KIND}, ");
+		fprintf(file, ".value = { .typedArray = { .dispatch = gxTypeDispatches[%zu], .atomics = gxTypeAtomics[%zu] }", (size_t)slot->value.typedArray.dispatch, (size_t)slot->value.typedArray.atomics);
+	} break;
+	case XS_WEAK_MAP_KIND: {
+		fprintf(file, "weakMap = { .first = ");
+		fxDumpSlotAddress(file, slot->value.weakList.first);
+		fprintf(file, ", .link = ");
+		fxDumpSlotAddress(file, slot->value.weakList.link);
+		fprintf(file, " }");
+	} break;
+	case XS_WEAK_SET_KIND: {
+		fprintf(file, "weakSet = { .first = ");
+		fxDumpSlotAddress(file, slot->value.weakList.first);
+		fprintf(file, ", .link = ");
+		fxDumpSlotAddress(file, slot->value.weakList.link);
+		fprintf(file, " }");
+	} break;
+	case XS_WEAK_REF_KIND: {
+		fprintf(file, "weakRef = { .target = ");
+		fxDumpSlotAddress(file, slot->value.weakRef.target);
+		fprintf(file, ", .link = ");
+		fxDumpSlotAddress(file, slot->value.weakRef.link);
+		fprintf(file, " }");
+	} break;
+	case XS_ACCESSOR_KIND: {
+		fprintf(file, "accessor = { .getter = ");
+		fxDumpSlotAddress(file, slot->value.accessor.getter);
+		fprintf(file, ", .setter = ");
+		fxDumpSlotAddress(file, slot->value.accessor.setter);
+		fprintf(file, " }");
+	} break;
+	case XS_AT_KIND: {
+		fprintf(file, "at = { 0x%x, %d }", slot->value.at.index, slot->value.at.id);
+	} break;
+	case XS_ENTRY_KIND: {
+		fprintf(file, "entry = { ");
+		fxDumpSlotAddress(file, slot->value.entry.slot);
+		fprintf(file, ", 0x%x }", slot->value.entry.sum);
+	} break;
+	case XS_ERROR_KIND: {
+		fprintf(file, "error = ");
+		fxDumpSlotAddress(file, slot->value.reference);
+		fprintf(file, " }");
+	} break;
+	case XS_EXPORT_KIND: {
+		fprintf(file, "export = { .closure = ");
+		fxDumpSlotAddress(file, slot->value.export.closure);
+		fprintf(file, ", .module = ");
+		fxDumpSlotAddress(file, slot->value.export.module);
+		fprintf(file, " }");
+	} break;
+	case XS_HOME_KIND: {
+		fprintf(file, "home = { .object = ");
+		fxDumpSlotAddress(file, slot->value.home.object);
+		fprintf(file, ", .module = ");
+		fxDumpSlotAddress(file, slot->value.home.module);
+		fprintf(file, " }");
+	} break;
+	case XS_KEY_KIND: {
+		fprintf(file, "key = { .string = ");
+		fxDumpChunkAddress(file, slot->value.key.string);
+		fprintf(file, ", .sum = 0x%x }", slot->value.key.sum);
+	} break;
+	case XS_LIST_KIND: {
+		fprintf(file, "list = { .first = ");
+		fxDumpSlotAddress(file, slot->value.list.first);
+		fprintf(file, ", .last = ");
+		fxDumpSlotAddress(file, slot->value.list.last);
+		fprintf(file, " }");
+	} break;
+	case XS_PRIVATE_KIND: {
+		fprintf(file, "private = { .check = ");
+		fxDumpSlotAddress(file, slot->value.private.check);
+		fprintf(file, ", .first = ");
+		fxDumpSlotAddress(file, slot->value.private.first);
+		fprintf(file, " }");
+	} break;
+	case XS_STACK_KIND: {
+		fprintf(file, "stack");
+	} break;
+	case XS_WEAK_ENTRY_KIND: {
+		fprintf(file, "weakEntry = { .check = ");
+		fxDumpSlotAddress(file, slot->value.weakEntry.check);
+		fprintf(file, ", .value = ");
+		fxDumpSlotAddress(file, slot->value.weakEntry.value);
+		fprintf(file, " }");
+	} break;
+	default:
+		break;
+	}
+}
+
+void fxDumpSlotAddress(FILE* file, void* address) 
+{
+	if (address)
+		fprintf(file, "[%8.8zu]", (size_t)address);
+	else
+		fprintf(file, "[        ]");
+}
+
+void fxDumpSlotTable(FILE* file, txByte* buffer, txSize size)
+{
+	txSize offset = 0;
+	txSlot** address = (txSlot**)buffer;
+	size /= sizeof(txSlot*);
+	while (offset < size) {
+		txSlot* slot = *((txSlot**)address);
+		if (offset % 8)
+			fprintf(file, " ");
+		else
+			fprintf(file, "\n\t");
+		fxDumpSlotAddress(file, slot);
+		offset++;
+		address++;
+	}
+}
