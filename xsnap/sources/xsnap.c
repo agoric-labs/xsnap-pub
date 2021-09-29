@@ -6,7 +6,7 @@ static void xsBuildAgent(xsMachine* the);
 static void xsPlayTest(xsMachine* the);
 static void xsPrintUsage();
 
-extern void xs_clearTimer(xsMachine* the);
+static void xs_clearTimer(xsMachine* the);
 static void xs_gc(xsMachine* the);
 static void xs_issueCommand(xsMachine* the);
 static void xs_print(xsMachine* the);
