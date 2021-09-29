@@ -14,7 +14,7 @@ static void xs_setImmediate(xsMachine* the);
 static void xs_setInterval(xsMachine* the);
 static void xs_setTimeout(xsMachine* the);
 
-#define mxSnapshotCallbackCount 7
+#define mxSnapshotCallbackCount 10
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand,
 	xs_clearTimer,
@@ -23,6 +23,9 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_gc,
 	xs_setInterval,
 	xs_setTimeout,
+	fx_lockdown,
+	fx_harden,
+	fx_purify,
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
@@ -270,8 +273,12 @@ void xsBuildAgent(xsMachine* machine)
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
 	
-	xsEndHost(machine);
-}
+	xsResult = xsNewHostFunction(fx_harden, 1);
+	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_lockdown, 0);
+	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_purify, 1);
+	xsDefine(xsGlobal, xsID("purify"), xsResult, xsDontEnum);
 
 	xsEndHost(machine);
 }

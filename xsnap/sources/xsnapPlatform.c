@@ -553,3 +553,528 @@ void fxSetCurrentMeter(txMachine* the, txUnsigned value)
 	the->meterIndex = value;
 }
 #endif
+
+void fx_lockdown(txMachine* the)
+{
+#define mxHardenBuiltInCall \
+	mxPush(mxGlobal); \
+	mxPushSlot(harden); \
+	mxCall()
+#define mxHardenBuiltInRun \
+	mxRunCount(1); \
+	mxPop()
+
+	txSlot* property;
+	txSlot* harden;
+	txInteger id;
+
+	if (mxProgram.value.reference->flag & XS_DONT_MARSHALL_FLAG)
+		mxTypeError("lockdown already called");
+	mxProgram.value.reference->flag |= XS_DONT_MARSHALL_FLAG;
+
+	property = mxBehaviorGetProperty(the, mxAsyncFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
+	property->kind = mxThrowTypeErrorFunction.kind;
+	property->value = mxThrowTypeErrorFunction.value;
+	property = mxBehaviorGetProperty(the, mxAsyncGeneratorFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
+	property->kind = mxThrowTypeErrorFunction.kind;
+	property->value = mxThrowTypeErrorFunction.value;
+	property = mxBehaviorGetProperty(the, mxFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
+	property->kind = mxThrowTypeErrorFunction.kind;
+	property->value = mxThrowTypeErrorFunction.value;
+	property = mxBehaviorGetProperty(the, mxGeneratorFunctionPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
+	property->kind = mxThrowTypeErrorFunction.kind;
+	property->value = mxThrowTypeErrorFunction.value;
+	property = mxBehaviorGetProperty(the, mxCompartmentPrototype.value.reference, mxID(_constructor), 0, XS_OWN);
+	property->kind = mxThrowTypeErrorFunction.kind;
+	property->value = mxThrowTypeErrorFunction.value;
+
+	property = mxFunctionInstanceCode(mxDateConstructor.value.reference);
+	property->value.callback.address = mxCallback(fx_Date_secure);
+
+	property = mxBehaviorGetProperty(the, mxDateConstructor.value.reference, mxID(_now), 0, XS_OWN);
+	property = mxFunctionInstanceCode(property->value.reference);
+	property->value.callback.address = mxCallback(fx_Date_now_secure);
+
+	property = mxBehaviorGetProperty(the, mxMathObject.value.reference, mxID(_random), 0, XS_OWN);
+	property = mxFunctionInstanceCode(property->value.reference);
+	property->value.callback.address = mxCallback(fx_Math_random_secure);
+
+	mxTemporary(harden);
+	mxPush(mxGlobal);
+	fxGetID(the, fxID(the, "harden"));
+	mxPullSlot(harden);
+
+	for (id = XS_SYMBOL_ID_COUNT; id < _Infinity; id++) {
+		mxHardenBuiltInCall; mxPush(the->stackPrototypes[-1 - id]); mxHardenBuiltInRun;
+	}
+	for (id = _Compartment; id < XS_INTRINSICS_COUNT; id++) {
+		mxHardenBuiltInCall; mxPush(the->stackPrototypes[-1 - id]); mxHardenBuiltInRun;
+	}
+
+	mxHardenBuiltInCall; mxPush(mxArgumentsSloppyPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxArgumentsStrictPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxArrayIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxAsyncFromSyncIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxAsyncFunctionPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxAsyncGeneratorFunctionPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxAsyncGeneratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxAsyncIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxGeneratorFunctionPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxGeneratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxHostPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxMapIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxModulePrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxRegExpStringIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxSetIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxStringIteratorPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxTransferPrototype); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxTypedArrayPrototype); mxHardenBuiltInRun;
+
+	mxHardenBuiltInCall; mxPush(mxAssignObjectFunction); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxCopyObjectFunction); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxEnumeratorFunction); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxInitializeRegExpFunction); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxOnRejectedPromiseFunction); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxOnResolvedPromiseFunction); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPush(mxOnThenableFunction); mxHardenBuiltInRun;
+
+	mxHardenBuiltInCall; mxPushReference(mxArrayLengthAccessor.value.accessor.getter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxArrayLengthAccessor.value.accessor.setter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxStringAccessor.value.accessor.getter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxStringAccessor.value.accessor.setter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxProxyAccessor.value.accessor.getter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxProxyAccessor.value.accessor.setter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxTypedArrayAccessor.value.accessor.getter); mxHardenBuiltInRun;
+	mxHardenBuiltInCall; mxPushReference(mxTypedArrayAccessor.value.accessor.setter); mxHardenBuiltInRun;
+
+	mxHardenBuiltInCall; mxPush(mxArrayPrototype); fxGetID(the, mxID(_Symbol_unscopables)); mxHardenBuiltInRun;
+
+	mxHardenBuiltInCall; mxPush(mxGlobal); mxHardenBuiltInRun;
+
+	mxPop();
+}
+
+void fx_harden(txMachine* the)
+{
+	if (!(mxProgram.value.reference->flag & XS_DONT_MARSHALL_FLAG))
+		mxTypeError("call lockdown before harden");
+
+	if (mxArgc > 0) {
+		txSlot* slot = mxArgv(0);
+		if (slot->kind == XS_REFERENCE_KIND) {
+			txSlot* instance = slot->value.reference;
+			txSlot* at;
+			txSlot* property;
+			if (instance->flag & XS_DONT_MARSHALL_FLAG)
+				return;
+
+			if (!mxBehaviorPreventExtensions(the, instance))
+				mxTypeError("extensible object");
+			at = fxNewInstance(the);
+			mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
+
+			mxPushUndefined();
+			property = the->stack;
+			while ((at = at->next)) {
+				if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+					txFlag mask = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG;
+					if (property->kind == XS_ACCESSOR_KIND) {
+						if (property->value.accessor.getter)
+							mask |= XS_GETTER_FLAG;
+						if (property->value.accessor.setter)
+							mask |= XS_SETTER_FLAG;
+					}
+					else {
+						mask |= XS_DONT_SET_FLAG;
+						property->flag |= XS_DONT_SET_FLAG;
+					}
+					property->flag |= XS_DONT_DELETE_FLAG;
+					mxBehaviorDefineOwnProperty(the, instance, at->value.at.id, at->value.at.index, property, mask);
+				}
+			}
+			mxPop();
+
+			instance->flag |= XS_DONT_MARSHALL_FLAG;
+
+			at = the->stack->value.reference;
+			mxPushUndefined();
+			property = the->stack;
+			mxBehaviorGetPrototype(the, instance, property);
+			if (property->kind == XS_REFERENCE_KIND) {
+				if (!(property->value.reference->flag & XS_DONT_MARSHALL_FLAG)) {
+					mxPushSlot(mxThis);
+					mxPushSlot(mxFunction);
+					mxCall();
+					mxPushSlot(property);
+					mxRunCount(1);
+					mxPop();
+				}
+			}
+			while ((at = at->next)) {
+				if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+					if (property->kind == XS_REFERENCE_KIND) {
+						if (!(property->value.reference->flag & XS_DONT_MARSHALL_FLAG)) {
+							mxPushSlot(mxThis);
+							mxPushSlot(mxFunction);
+							mxCall();
+							mxPushSlot(property);
+							mxRunCount(1);
+							mxPop();
+						}
+					}
+					else if (property->kind == XS_ACCESSOR_KIND) {
+						if (property->value.accessor.getter) {
+							if (!(property->value.accessor.getter->flag & XS_DONT_MARSHALL_FLAG)) {
+								mxPushSlot(mxThis);
+								mxPushSlot(mxFunction);
+								mxCall();
+								mxPushReference(property->value.accessor.getter);
+								mxPushBoolean(1);
+								mxRunCount(2);
+								mxPop();
+							}
+						}
+						if (property->value.accessor.setter) {
+							if (!(property->value.accessor.setter->flag & XS_DONT_MARSHALL_FLAG)) {
+								mxPushSlot(mxThis);
+								mxPushSlot(mxFunction);
+								mxCall();
+								mxPushReference(property->value.accessor.setter);
+								mxPushBoolean(1);
+								mxRunCount(2);
+								mxPop();
+							}
+						}
+					}
+				}
+			}
+			mxPop();
+
+			mxPop();
+		}
+		*mxResult = *mxArgv(0);
+	}
+}
+
+typedef struct sxVerifyLink txVerifyLink;
+typedef struct sxVerifyList txVerifyList;
+
+struct sxVerifyLink {
+	txVerifyLink* previous;
+	txVerifyLink* next;
+	txString name;
+	txID id;
+	txIndex index;
+};
+
+struct sxVerifyList {
+	txVerifyLink* first;
+	txVerifyLink* last;
+};
+
+static void fxVerifyEnvironment(txMachine* the, txVerifyList *list, txSlot* environment, txSlot** garbage);
+static void fxVerifyError(txMachine* the, txVerifyList *list);
+static void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSlot** garbage);
+static void fxVerifyProperty(txMachine* the, txVerifyList *list, txSlot* property, txSlot** garbage);
+
+void fx_purify(txMachine* the)
+{
+	if (!(mxProgram.value.reference->flag & XS_DONT_MARSHALL_FLAG))
+		mxTypeError("call purify before harden");
+
+	fxString(the, mxResult, "");
+	if (mxArgc > 0) {
+		txSlot* slot = mxArgv(0);
+		if (slot->kind == XS_REFERENCE_KIND) {
+			txVerifyList list = { C_NULL, C_NULL };
+			txSlot* garbage = C_NULL;
+			txSlot* instance = slot->value.reference;
+			fxVerifyInstance(the, &list, instance, &garbage);
+			while ((instance = garbage)) {
+				garbage = instance->value.instance.garbage;
+				instance->value.instance.garbage = C_NULL;
+			}
+		}
+	}
+}
+
+void fxVerifyEnvironment(txMachine* the, txVerifyList *list, txSlot* environment, txSlot** garbage)
+{
+	txVerifyLink link;
+	txSlot* prototype;
+	txSlot* property;
+
+	if (environment->value.instance.garbage)
+		return;
+	environment->value.instance.garbage = *garbage;
+	*garbage = environment;
+
+	link.previous = list->last;
+	link.next = C_NULL;
+	if (list->first)
+		list->last->next = &link;
+	else
+		list->first = &link;
+	list->last = &link;
+
+	prototype = environment->value.instance.prototype;
+	if (prototype) {
+		link.id = mxID(___proto__);
+		link.index = 0;
+		link.name = C_NULL;
+		fxVerifyEnvironment(the, list, prototype, garbage);
+	}
+	property = environment->next;
+	while (property) {
+		if ((property->kind == XS_CLOSURE_KIND) && (property->ID != XS_NO_ID)) {
+			txSlot* closure = property->value.closure;
+			link.id = property->ID;
+			link.index = 0;
+			link.name = C_NULL;
+			if (!(closure->flag & XS_DONT_SET_FLAG)) {
+				fxVerifyError(the, list);
+			}
+			if (closure->kind == XS_REFERENCE_KIND) {
+				fxVerifyInstance(the, list, closure->value.reference, garbage);
+			}
+		}
+		property = property->next;
+	}
+
+	if (link.previous)
+		link.previous->next = C_NULL;
+	else
+		list->first = C_NULL;
+	list->last = link.previous;
+}
+
+void fxVerifyError(txMachine* the, txVerifyList *list)
+{
+	txVerifyLink* link = list->first;
+	if (mxResult->value.string[0])
+		fxConcatStringC(the, mxResult, "\n");
+	while (link) {
+		if (link->name) {
+			fxConcatStringC(the, mxResult, "[[");
+			fxConcatStringC(the, mxResult, link->name);
+			fxConcatStringC(the, mxResult, "]]");
+		}
+		else if (link->id != XS_NO_ID) {
+			txSlot* key = fxGetKey(the, link->id);
+			if (key) {
+				if (key->flag & XS_DONT_ENUM_FLAG) {
+					c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "%s", key->value.key.string);
+					fxConcatStringC(the, mxResult, ".");
+					fxConcatStringC(the, mxResult, the->nameBuffer);
+				}
+				else {
+					if ((key->kind == XS_KEY_KIND) || (key->kind == XS_KEY_X_KIND))
+						c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "%s", key->value.key.string);
+					else if ((key->kind == XS_STRING_KIND) || (key->kind == XS_STRING_X_KIND))
+						c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "%s", key->value.string);
+					else
+						c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "");
+					fxConcatStringC(the, mxResult, "[Symbol(");
+					fxConcatStringC(the, mxResult, the->nameBuffer);
+					fxConcatStringC(the, mxResult, ")]");
+				}
+			}
+			else {
+				fxConcatStringC(the, mxResult, "[Symbol()]");
+			}
+		}
+		else {
+			fxNumberToString(the->dtoa, link->index, the->nameBuffer, sizeof(the->nameBuffer), 0, 0);
+			fxConcatStringC(the, mxResult, "[");
+			fxConcatStringC(the, mxResult, the->nameBuffer);
+			fxConcatStringC(the, mxResult, "]");
+		}
+		link = link->next;
+	}
+}
+
+void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSlot** garbage)
+{
+	txVerifyLink link;
+	txSlot* prototype;
+	txSlot* property;
+
+	if (instance->value.instance.garbage)
+		return;
+	instance->value.instance.garbage = *garbage;
+	*garbage = instance;
+
+
+	link.previous = list->last;
+	link.next = C_NULL;
+	if (list->first)
+		list->last->next = &link;
+	else
+		list->first = &link;
+	list->last = &link;
+
+	if (!(instance->flag & XS_DONT_PATCH_FLAG)) {
+		link.id = XS_NO_ID;
+		link.index = 0;
+		link.name = "Extensible";
+		fxVerifyError(the, list);
+	}
+
+	prototype = fxGetPrototype(the, instance);
+	if (prototype) {
+		link.id = mxID(___proto__);
+		link.index = 0;
+		link.name = C_NULL;
+		fxVerifyInstance(the, list, prototype, garbage);
+	}
+	property = instance->next;
+	while (property) {
+		if (property->flag & XS_INTERNAL_FLAG) {
+			switch (property->kind) {
+			case XS_ARRAY_KIND:
+				{
+					txSlot* address = property->value.array.address;
+					if (address) {
+						txIndex size = (((txChunk*)(((txByte*)address) - sizeof(txChunk)))->size) / sizeof(txSlot);
+						txSlot* limit = address + size;
+						while (address < limit) {
+							link.id = XS_NO_ID;
+							link.index = *((txIndex*)address);
+							link.name = C_NULL;
+							fxVerifyProperty(the, list, address, garbage);
+							address++;
+						}
+					}
+				}
+				break;
+			case XS_ARRAY_BUFFER_KIND:
+				if (property->value.arrayBuffer.address != C_NULL) {
+					link.id = XS_NO_ID;
+					link.index = 0;
+					link.name = "ArrayBufferData";
+					fxVerifyError(the, list);
+				}
+				break;
+			case XS_CALLBACK_KIND:
+			case XS_CALLBACK_X_KIND:
+			case XS_CODE_KIND:
+			case XS_CODE_X_KIND:
+				if (property->value.code.closures) {
+					link.id = XS_NO_ID;
+					link.index = 0;
+					link.name = "Environment";
+					fxVerifyEnvironment(the, list, property->value.code.closures, garbage);
+				}
+				break;
+			case XS_DATA_VIEW_KIND:
+				property = property->next;
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "ViewedArrayBuffer";
+				fxVerifyInstance(the, list, property->value.reference, garbage);
+				break;
+			case XS_DATE_KIND:
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "DateValue";
+				fxVerifyError(the, list);
+				break;
+			case XS_REGEXP_KIND:
+				break;
+			case XS_MAP_KIND:
+				property = property->next;
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "MapData";
+				fxVerifyError(the, list);
+				break;
+			case XS_PRIVATE_KIND:
+				{
+					txSlot* item = property->value.private.first;
+					while (item) {
+						link.id = item->ID;
+						link.index = 0;
+						link.name = C_NULL;
+						fxVerifyProperty(the, list, item, garbage);
+						item = item->next;
+					}
+				}
+				break;
+			case XS_PROXY_KIND:
+// 				if (property->value.proxy.handler) {
+// 					link.id = XS_NO_ID;
+// 					link.index = 0;
+// 					link.name = "ProxyHandler";
+// 					fxVerifyInstance(the, list, property->value.proxy.handler, garbage);
+// 				}
+				if (property->value.proxy.target) {
+					link.id = XS_NO_ID;
+					link.index = 0;
+					link.name = "ProxyTarget";
+					fxVerifyInstance(the, list, property->value.proxy.target, garbage);
+				}
+				break;
+			case XS_SET_KIND:
+				property = property->next;
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "SetData";
+				fxVerifyError(the, list);
+				break;
+			case XS_TYPED_ARRAY_KIND:
+				property = property->next;
+				property = property->next;
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "ViewedArrayBuffer";
+				fxVerifyInstance(the, list, property->value.reference, garbage);
+				break;
+			case XS_WEAK_MAP_KIND:
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "WeakMapData";
+				fxVerifyError(the, list);
+				break;
+			case XS_WEAK_SET_KIND:
+				link.id = XS_NO_ID;
+				link.index = 0;
+				link.name = "WeakSetData";
+				fxVerifyError(the, list);
+				break;
+			}
+		}
+		else {
+			link.id = property->ID;
+			link.index = 0;
+			link.name = C_NULL;
+			fxVerifyProperty(the, list, property, garbage);
+		}
+		property = property->next;
+	}
+
+	if (link.previous)
+		link.previous->next = C_NULL;
+	else
+		list->first = C_NULL;
+	list->last = link.previous;
+}
+
+void fxVerifyProperty(txMachine* the, txVerifyList *list, txSlot* property, txSlot** garbage)
+{
+	txBoolean immutable = 1;
+
+	if (property->kind != XS_ACCESSOR_KIND)
+		if (!(property->flag & XS_DONT_SET_FLAG))
+			immutable = 0;
+	if (!(property->flag & XS_DONT_DELETE_FLAG))
+		immutable = 0;
+	if (!immutable) {
+		fxVerifyError(the, list);
+	}
+	switch (property->kind) {
+	case XS_REFERENCE_KIND:
+		fxVerifyInstance(the, list, property->value.reference, garbage);
+		break;
+	}
+}
