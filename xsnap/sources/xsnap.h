@@ -69,11 +69,6 @@ struct xsSnapshotRecord {
 	fxReadSnapshot(_SNAPSHOT, _NAME, _CONTEXT)
 #define xsWriteSnapshot(_THE, _SNAPSHOT) \
 	fxWriteSnapshot(_THE, _SNAPSHOT)
-
-#define xsCheckAliases(_THE) \
-	fxCheckAliases(_THE)
-#define xsFreezeBuiltIns(_THE) \
-	fxFreezeBuiltIns(_THE)
 	
 #define xsRunModuleFile(_PATH) \
 	fxRunModuleFile(the, _PATH)
@@ -108,9 +103,6 @@ mxImport void fxSetCurrentMeter(xsMachine* the, xsUnsignedValue value);
 
 mxImport xsMachine* fxReadSnapshot(xsSnapshot* snapshot, xsStringValue theName, void* theContext);
 mxImport int fxWriteSnapshot(xsMachine* the, xsSnapshot* snapshot);
-
-mxImport xsIntegerValue fxCheckAliases(xsMachine* the);
-mxImport void fxFreezeBuiltIns(xsMachine* the);
 
 mxImport void fxRunModuleFile(xsMachine* the, xsStringValue path);
 mxImport void fxRunProgramFile(xsMachine* the, xsStringValue path);
