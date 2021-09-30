@@ -42,9 +42,6 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_print,
 	xs_setImmediate,
 	xs_gc,
-	fx_lockdown,
-	fx_harden,
-	fx_purify,
 
 	xs_performance_now,
 	xs_currentMeterLimit,
@@ -62,6 +59,10 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 
 	xs_base64_encode,
 	xs_base64_decode,
+
+	fx_lockdown,
+	fx_harden,
+	fx_purify,
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
