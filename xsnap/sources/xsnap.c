@@ -38,31 +38,31 @@ extern void modInstallBase64(xsMachine *the);
 
 #define mxSnapshotCallbackCount 20
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
-	xs_issueCommand,
-	xs_print,
-	xs_setImmediate,
-	xs_gc,
+	xs_issueCommand, // 0
+	xs_print, // 1
+	xs_setImmediate, // 2
+	xs_gc, // 3
 
-	xs_performance_now,
-	xs_currentMeterLimit,
-	xs_resetMeter,
+	xs_performance_now, // 4
+	xs_currentMeterLimit, // 5
+	xs_resetMeter, // 6
 
-	xs_textdecoder,
-	xs_textdecoder_decode,
-	xs_textdecoder_get_encoding,
-	xs_textdecoder_get_ignoreBOM,
-	xs_textdecoder_get_fatal,
+	xs_textdecoder, // 7
+	xs_textdecoder_decode, // 8
+	xs_textdecoder_get_encoding, // 9
+	xs_textdecoder_get_ignoreBOM, // 10
+	xs_textdecoder_get_fatal, // 11
 
-	xs_textencoder,
-	xs_textencoder_encode,
-	xs_textencoder_encodeInto,
+	xs_textencoder, // 12
+	xs_textencoder_encode, // 13
+	xs_textencoder_encodeInto, // 14
 
-	xs_base64_encode,
-	xs_base64_decode,
+	xs_base64_encode, // 15
+	xs_base64_decode, // 16
 
-	fx_lockdown,
-	fx_harden,
-	fx_purify,
+	fx_lockdown, // 17
+	fx_harden, // 18
+	fx_purify, // 19
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
