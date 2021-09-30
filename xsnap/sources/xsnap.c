@@ -36,7 +36,7 @@ extern void xs_base64_encode(xsMachine *the);
 extern void xs_base64_decode(xsMachine *the);
 extern void modInstallBase64(xsMachine *the);
 
-#define mxSnapshotCallbackCount 17
+#define mxSnapshotCallbackCount 20
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand,
 	xs_print,
@@ -45,6 +45,10 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	fx_lockdown,
 	fx_harden,
 	fx_purify,
+
+	xs_performance_now,
+	xs_currentMeterLimit,
+	xs_resetMeter,
 
 	xs_textdecoder,
 	xs_textdecoder_decode,
@@ -329,6 +333,11 @@ void xsBuildAgent(xsMachine* machine)
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
 	
+	xsResult = xsNewHostFunction(xs_currentMeterLimit, 1);
+	xsDefine(xsGlobal, xsID("currentMeterLimit"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(xs_resetMeter, 1);
+	xsDefine(xsGlobal, xsID("resetMeter"), xsResult, xsDontEnum);
+
 	modInstallTextDecoder(the);
 	modInstallTextEncoder(the);
 	modInstallBase64(the);
