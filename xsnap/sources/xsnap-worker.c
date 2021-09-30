@@ -23,7 +23,6 @@ static void fxTestRecord(int flags, void* buffer, size_t length);
 #endif
 
 static void xsBuildAgent(xsMachine* the);
-static void xsFreezeAgent(xsMachine* machine);
 static void xsPrintUsage();
 
 // static void xs_clearTimer(xsMachine* the);
@@ -148,7 +147,6 @@ int main(int argc, char* argv[])
 	int argr = 0;
 	int error = 0;
 	int interval = 0;
-	int freeze = 0;
 	int parserBufferSize = 8192 * 1024;
 
 	xsSnapshot snapshot = {
@@ -175,10 +173,7 @@ int main(int argc, char* argv[])
 	for (argi = 1; argi < argc; argi++) {
 		if (argv[argi][0] != '-')
 			continue;
-		if (!strcmp(argv[argi], "-f")) {
-			freeze = 1;
-		}
-		else if (!strcmp(argv[argi], "-h")) {
+		if (!strcmp(argv[argi], "-h")) {
 			xsPrintUsage();
 			return 0;
 		} else if (!strcmp(argv[argi], "-i")) {
@@ -269,13 +264,6 @@ int main(int argc, char* argv[])
 	else {
 		machine = xsCreateMachine(creation, "xsnap", NULL);
 		xsBuildAgent(machine);
-	}
-	if (freeze) {
-		xsFreezeBuiltIns(machine);
-		xsFreezeAgent(machine);
-		xsShareMachine(machine);
-		xsCheckAliases(machine);
-		machine = xsCloneMachine(creation, machine, "xsnap", NULL);
 	}
 	if (!(fromParent = fdopen(3, "rb"))) {
 		fprintf(stderr, "fdopen(3) from parent failed\n");
@@ -552,53 +540,9 @@ void xsBuildAgent(xsMachine* machine)
 	xsEndHost(machine);
 }
 
-void xsFreezeAgent(xsMachine* machine) 
-{
-	xsBeginHost(machine);
-	xsVars(2);
-	xsVar(0) = xsGet(xsGlobal, xsID("Object"));
-
-// 	xsVar(1) = xsGet(xsGlobal, xsID("clearImmediate"));
-// 	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("setImmediate"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-// 	xsVar(1) = xsGet(xsGlobal, xsID("clearInterval"));
-// 	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-// 	xsVar(1) = xsGet(xsGlobal, xsID("setInterval"));
-// 	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-// 	xsVar(1) = xsGet(xsGlobal, xsID("clearTimeout"));
-// 	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-// 	xsVar(1) = xsGet(xsGlobal, xsID("setTimeout"));
-// 	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("gc"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("print"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("issueCommand"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("performance"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("currentMeterLimit"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("resetMeter"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-// 	xsVar(1) = xsGet(xsGlobal, xsID("console"));
-// 	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsEndHost(machine);
-}
-
 void xsPrintUsage()
 {
-	printf("xsnap [-h] [-f] [-i <interval>] [-l <limit>] [-s <size>] [-m] [-r <snapshot>] [-s] [-v]\n");
-	printf("\t-f: freeze the XS machine\n");
+	printf("xsnap [-h] [-i <interval>] [-l <limit>] [-s <size>] [-m] [-r <snapshot>] [-s] [-v]\n");
 	printf("\t-h: print this help message\n");
 	printf("\t-i <interval>: metering interval (default to 1)\n");
 	printf("\t-l <limit>: metering limit (default to none)\n");

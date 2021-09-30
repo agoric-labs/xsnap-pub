@@ -2,28 +2,71 @@
 
 #define SNAPSHOT_SIGNATURE "xsnap 1"
 
-static void xsBuildAgent(xsMachine* the);
-static void xsFreezeAgent(xsMachine* machine);
-static void xsPlayTest(xsMachine* the);
-static void xsPrintUsage();
+extern void fxDumpSnapshot(xsMachine* the, xsSnapshot* snapshot);
 
-extern void xs_clearTimer(xsMachine* the);
+static void xsBuildAgent(xsMachine* the);
+static void xsPrintUsage();
+static void xsReplay(xsMachine* machine);
+
+static void xs_clearTimer(xsMachine* the);
+static void xs_currentMeterLimit(xsMachine* the);
 static void xs_gc(xsMachine* the);
 static void xs_issueCommand(xsMachine* the);
+static void xs_performance_now(xsMachine* the);
 static void xs_print(xsMachine* the);
+static void xs_resetMeter(xsMachine* the);
 static void xs_setImmediate(xsMachine* the);
 static void xs_setInterval(xsMachine* the);
 static void xs_setTimeout(xsMachine* the);
 
-#define mxSnapshotCallbackCount 7
+extern void xs_textdecoder(xsMachine *the);
+extern void xs_textdecoder_decode(xsMachine *the);
+extern void xs_textdecoder_get_encoding(xsMachine *the);
+extern void xs_textdecoder_get_ignoreBOM(xsMachine *the);
+extern void xs_textdecoder_get_fatal(xsMachine *the);
+
+extern void xs_textencoder(xsMachine *the);
+extern void xs_textencoder_encode(xsMachine *the);
+extern void xs_textencoder_encodeInto(xsMachine *the);
+
+extern void modInstallTextDecoder(xsMachine *the);
+extern void modInstallTextEncoder(xsMachine *the);
+
+extern void xs_base64_encode(xsMachine *the);
+extern void xs_base64_decode(xsMachine *the);
+extern void modInstallBase64(xsMachine *the);
+
+#define mxSnapshotCallbackCount 23
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
-	xs_issueCommand,
-	xs_clearTimer,
-	xs_print,
-	xs_setImmediate,
-	xs_gc,
-	xs_setInterval,
-	xs_setTimeout,
+	xs_issueCommand, // 0
+	xs_print, // 1
+	xs_gc, // 2
+
+	xs_clearTimer, // 3
+	xs_setImmediate, // 4
+	xs_setInterval, // 5
+	xs_setTimeout, // 6
+
+	xs_performance_now, // 7
+	xs_currentMeterLimit, // 8
+	xs_resetMeter, // 9
+
+	xs_textdecoder, // 10
+	xs_textdecoder_decode, // 11
+	xs_textdecoder_get_encoding, // 12
+	xs_textdecoder_get_ignoreBOM, // 13
+	xs_textdecoder_get_fatal, // 14
+
+	xs_textencoder, // 15
+	xs_textencoder_encode, // 16
+	xs_textencoder_encodeInto, // 17
+
+	xs_base64_encode, // 18
+	xs_base64_decode, // 19
+
+	fx_lockdown, // 20
+	fx_harden, // 21
+	fx_purify, // 22
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
@@ -36,6 +79,7 @@ static int xsSnapshopWrite(void* stream, void* address, size_t size)
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
 	
+static xsUnsignedValue gxCurrentMeter = 0;
 static xsBooleanValue gxMeteringPrint = 0;
 static xsUnsignedValue gxMeteringLimit = 0;
 #ifdef mxMetering
@@ -53,12 +97,12 @@ static xsBooleanValue xsMeteringCallback(xsMachine* the, xsUnsignedValue index)
 int main(int argc, char* argv[]) 
 {
 	int argi;
+	int argd = 0;
 	int argr = 0;
 	int argw = 0;
 	int error = 0;
 	int interval = 0;
 	int option = 0;
-	int freeze = 0;
 	xsCreation _creation = {
 		16 * 1024 * 1024, 	/* initialChunkSize */
 		4 * 1024 * 1024, 	/* incrementalChunkSize */
@@ -96,15 +140,18 @@ int main(int argc, char* argv[])
 	for (argi = 1; argi < argc; argi++) {
 		if (argv[argi][0] != '-')
 			continue;
-		if (!strcmp(argv[argi], "-e"))
-			option = 1;
-		else if (!strcmp(argv[argi], "-f")) {
-			if (argw) {
+		if (!strcmp(argv[argi], "-d")) {
+			argi++;
+			if (argi < argc)
+				argd = argi;
+			else {
 				xsPrintUsage();
 				return 1;
 			}
-			freeze = 1;
+			option = 5;
 		}
+		else if (!strcmp(argv[argi], "-e"))
+			option = 1;
 		else if (!strcmp(argv[argi], "-h"))
 			xsPrintUsage();
 		else if (!strcmp(argv[argi], "-i")) {
@@ -147,10 +194,6 @@ int main(int argc, char* argv[])
 			printf("XS %s\n", path);
 		}
 		else if (!strcmp(argv[argi], "-w")) {
-			if (freeze) {
-				xsPrintUsage();
-				return 1;
-			}
 			argi++;
 			if (argi < argc)
 				argw = argi;
@@ -186,17 +229,23 @@ int main(int argc, char* argv[])
 		machine = xsCreateMachine(creation, "xsnap", NULL);
 		xsBuildAgent(machine);
 	}
-	if (freeze) {
-		xsFreezeBuiltIns(machine);
-		xsFreezeAgent(machine);
-		xsShareMachine(machine);
-		xsCheckAliases(machine);
-		machine = xsCloneMachine(creation, machine, "xsnap", NULL);
-	}
 	xsBeginMetering(machine, xsMeteringCallback, interval);
 	{
-		if (option == 4) {
-			xsPlayTest(machine);
+		if (option == 5) {
+			snapshot.stream = fopen(argv[argd], "rb");
+			if (snapshot.stream) {
+				fxDumpSnapshot(machine, &snapshot);
+				fclose(snapshot.stream);
+			}
+			else
+				snapshot.error = errno;
+			if (snapshot.error) {
+				fprintf(stderr, "cannot dump snapshot %s: %s\n", argv[argr], strerror(snapshot.error));
+				return 1;
+			}
+		}
+		else if (option == 4) {
+			xsReplay(machine);
 		}
 		else {
 			xsBeginHost(machine);
@@ -284,65 +333,67 @@ void xsBuildAgent(xsMachine* machine)
 	xsResult = xsNewHostFunction(xs_issueCommand, 1);
 	xsDefine(xsGlobal, xsID("issueCommand"), xsResult, xsDontEnum);
 	
-	xsVar(0) = xsGet(xsGlobal, xsID("Date"));
-	xsVar(0) = xsGet(xsVar(0), xsID("now"));
 	xsResult = xsNewObject();
+	xsVar(0) = xsNewHostFunction(xs_performance_now, 0);
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
 	
+	xsResult = xsNewHostFunction(xs_currentMeterLimit, 1);
+	xsDefine(xsGlobal, xsID("currentMeterLimit"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(xs_resetMeter, 1);
+	xsDefine(xsGlobal, xsID("resetMeter"), xsResult, xsDontEnum);
+
+	modInstallTextDecoder(the);
+	modInstallTextEncoder(the);
+	modInstallBase64(the);
+
+	xsResult = xsNewHostFunction(fx_harden, 1);
+	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_lockdown, 0);
+	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_purify, 1);
+	xsDefine(xsGlobal, xsID("purify"), xsResult, xsDontEnum);
+
 	xsEndHost(machine);
 }
 
-void xsFreezeAgent(xsMachine* machine) 
+void xsPrintUsage()
 {
-	xsBeginHost(machine);
-	xsVars(2);
-	xsVar(0) = xsGet(xsGlobal, xsID("Object"));
-
-	xsVar(1) = xsGet(xsGlobal, xsID("clearImmediate"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("setImmediate"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("clearInterval"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("setInterval"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("clearTimeout"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("setTimeout"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("gc"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	xsVar(1) = xsGet(xsGlobal, xsID("print"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsVar(1) = xsGet(xsGlobal, xsID("issueCommand"));
-	xsCall2(xsVar(0), xsID("freeze"), xsVar(1), xsTrue);
-	
-	xsEndHost(machine);
+	printf("xsnap [-h] [-e] [i <interval] [l <limit] [-m] [-r <snapshot>] [-s] [-v] [-w <snapshot>] strings...\n");
+	printf("\t-e: eval strings\n");
+	printf("\t-h: print this help message\n");
+	printf("\t-i <interval>: metering interval (default to 1)\n");
+	printf("\t-l <limit>: metering limit (default to none)\n");
+	printf("\t-m: strings are paths to modules\n");
+	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
+	printf("\t-s: strings are paths to scripts\n");
+	printf("\t-v: print XS version\n");
+	printf("\t-w <snapshot>: write snapshot of the XS machine at exit\n");
+	printf("without -e, -m, -s:\n");
+	printf("\tif the extension is .mjs, strings are paths to modules\n");
+	printf("\telse strings are paths to scripts\n");
 }
 
-void xsPlayTest(xsMachine* machine)
+static int gxStep = 0;
+
+void xsReplay(xsMachine* machine)
 {
-	int index = 0;
-	char* extensions[2] = { ".js", ".json" };
+	char path[C_PATH_MAX];
+	char* names[5] = { "-evaluate.dat", "-issueCommand.dat", "-command.dat", "-reply.dat", "-options.json", };
 	for (;;) {
 		int which;
 		xsBeginHost(machine);
-		for (which = 0; which < 2; which++) {
-			char path[C_PATH_MAX];
-			sprintf(path, "param-%d%s", index, extensions[which]);
+		for (which = 0; which < 5; which++) {
+			sprintf(path, "%05d%s", gxStep, names[which]);
 			{
 			#if mxWindows
 				DWORD attributes = GetFileAttributes(path);
-				if ((attributes != 0xFFFFFFFF) && (!(attributes & FILE_ATTRIBUTE_DIRECTORY))) {
+				if ((attributes != 0xFFFFFFFF) && (!(attributes & FILE_ATTRIBUTE_DIRECTORY)))
 			#else
 				struct stat a_stat;
-				if ((stat(path, &a_stat) == 0) && (S_ISREG(a_stat.st_mode))) {
+				if ((stat(path, &a_stat) == 0) && (S_ISREG(a_stat.st_mode)))
 			#endif
+				{
 					fprintf(stderr, "### %s\n", path);
 					FILE* file = fopen(path, "rb");
 					if (file) {
@@ -358,43 +409,33 @@ void xsPlayTest(xsMachine* machine)
 							string[length] = 0;
 							fclose(file);
 							xsCall1(xsGlobal, xsID("eval"), xsResult);
+
 						}
-						else {
+						else if (which == 1) {
 							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
 							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
 							fclose(file);
 							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
+
 						}
 					}
-					index++;
 					break;
 				}
 			}
 		}
 		xsEndHost(machine);
-		if (which == 2)
+		if (which == 5)
 			break;
+		gxStep++;
 		fxRunLoop(machine);
 	}
 }
 
-void xsPrintUsage()
+void xs_currentMeterLimit(xsMachine* the)
 {
-	printf("xsnap [-h] [-e] [-f] [i <interval] [l <limit] [-m] [-r <snapshot>] [-s] [-v] [-w <snapshot>] strings...\n");
-	printf("\t-e: eval strings\n");
-	printf("\t-f: freeze the XS machine\n");
-	printf("\t-h: print this help message\n");
-	printf("\t-i <interval>: metering interval (default to 1)\n");
-	printf("\t-l <limit>: metering limit (default to none)\n");
-	printf("\t-m: strings are paths to modules\n");
-	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
-	printf("\t-s: strings are paths to scripts\n");
-	printf("\t-v: print XS version\n");
-	printf("\t-w <snapshot>: write snapshot of the XS machine at exit\n");
-	printf("without -e, -m, -s:\n");
-	printf("\tif the extension is .mjs, strings are paths to modules\n");
-	printf("\telse strings are paths to scripts\n");
-	printf("-f and -w are incompatible\n");
+#if mxMetering
+	xsResult = xsInteger(gxCurrentMeter);
+#endif
 }
 
 void xs_gc(xsMachine* the)
@@ -404,22 +445,30 @@ void xs_gc(xsMachine* the)
 
 void xs_issueCommand(xsMachine* the)
 {
-	static int index = 0;
 	char path[C_PATH_MAX];
 	FILE* file;
 	size_t length;
-	sprintf(path, "reply-%d.json", index);
+	sprintf(path, "%05d-command.dat", gxStep);
 	fprintf(stderr, "### %s\n", path);
+	gxStep++;
+	sprintf(path, "%05d-reply.dat", gxStep);
+	fprintf(stderr, "### %s\n", path);
+	gxStep++;
 	file = fopen(path, "rb");
-	if (file) {
-		fseek(file, 0, SEEK_END);
-		length = ftell(file);
-		fseek(file, 0, SEEK_SET);
-		xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-		length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
-		fclose(file);
-	}
-	index++;
+	if (!file) xsUnknownError("cannot open %s", path);
+	fseek(file, 0, SEEK_END);
+	length = ftell(file);
+	fseek(file, 0, SEEK_SET);
+	xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
+	length = fread(xsToArrayBuffer(xsResult), 1, length, file);
+	fclose(file);
+}
+
+void xs_performance_now(xsMachine *the)
+{
+	c_timeval tv;
+	c_gettimeofday(&tv, NULL);
+	xsResult = xsNumber((double)(tv.tv_sec * 1000.0) + ((double)(tv.tv_usec) / 1000.0));
 }
 
 void xs_print(xsMachine* the)
@@ -438,6 +487,19 @@ void xs_print(xsMachine* the)
 		fprintf(stdout, "%s", xsToString(xsArg(i)));
 	}
 	fprintf(stdout, "\n");
+}
+
+void xs_resetMeter(xsMachine* the)
+{
+#if mxMetering
+	xsIntegerValue argc = xsToInteger(xsArgc);
+	if (argc < 2) {
+		xsTypeError("expected newMeterLimit, newMeterIndex");
+	}
+	xsResult = xsInteger(xsGetCurrentMeter(the));
+	gxCurrentMeter = xsToInteger(xsArg(0));
+	xsSetCurrentMeter(the, xsToInteger(xsArg(1)));
+#endif
 }
 
 void xs_setImmediate(xsMachine* the)
