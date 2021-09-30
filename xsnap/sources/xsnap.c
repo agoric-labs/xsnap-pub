@@ -38,35 +38,35 @@ extern void modInstallBase64(xsMachine *the);
 
 #define mxSnapshotCallbackCount 23
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
-	xs_issueCommand,
-	xs_print,
-	xs_gc,
+	xs_issueCommand, // 0
+	xs_print, // 1
+	xs_gc, // 2
 
-	xs_clearTimer,
-	xs_setImmediate,
-	xs_setInterval,
-	xs_setTimeout,
+	xs_clearTimer, // 3
+	xs_setImmediate, // 4
+	xs_setInterval, // 5
+	xs_setTimeout, // 6
 
-	xs_performance_now,
-	xs_currentMeterLimit,
-	xs_resetMeter,
+	xs_performance_now, // 7
+	xs_currentMeterLimit, // 8
+	xs_resetMeter, // 9
 
-	xs_textdecoder,
-	xs_textdecoder_decode,
-	xs_textdecoder_get_encoding,
-	xs_textdecoder_get_ignoreBOM,
-	xs_textdecoder_get_fatal,
+	xs_textdecoder, // 10
+	xs_textdecoder_decode, // 11
+	xs_textdecoder_get_encoding, // 12
+	xs_textdecoder_get_ignoreBOM, // 13
+	xs_textdecoder_get_fatal, // 14
 
-	xs_textencoder,
-	xs_textencoder_encode,
-	xs_textencoder_encodeInto,
+	xs_textencoder, // 15
+	xs_textencoder_encode, // 16
+	xs_textencoder_encodeInto, // 17
 
-	xs_base64_encode,
-	xs_base64_decode,
+	xs_base64_encode, // 18
+	xs_base64_decode, // 19
 
-	fx_lockdown,
-	fx_harden,
-	fx_purify,
+	fx_lockdown, // 20
+	fx_harden, // 21
+	fx_purify, // 22
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
