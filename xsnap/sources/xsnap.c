@@ -39,10 +39,11 @@ extern void modInstallBase64(xsMachine *the);
 #define mxSnapshotCallbackCount 23
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand,
-	xs_clearTimer,
 	xs_print,
-	xs_setImmediate,
 	xs_gc,
+
+	xs_clearTimer,
+	xs_setImmediate,
 	xs_setInterval,
 	xs_setTimeout,
 
