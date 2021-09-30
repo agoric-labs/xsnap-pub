@@ -6,13 +6,13 @@ static void xsBuildAgent(xsMachine* the);
 static void xsPlayTest(xsMachine* the);
 static void xsPrintUsage();
 
-static void xs_clearTimer(xsMachine* the);
+//static void xs_clearTimer(xsMachine* the);
 static void xs_gc(xsMachine* the);
 static void xs_issueCommand(xsMachine* the);
 static void xs_print(xsMachine* the);
 static void xs_setImmediate(xsMachine* the);
-static void xs_setInterval(xsMachine* the);
-static void xs_setTimeout(xsMachine* the);
+//static void xs_setInterval(xsMachine* the);
+//static void xs_setTimeout(xsMachine* the);
 
 extern void xs_textdecoder(xsMachine *the);
 extern void xs_textdecoder_decode(xsMachine *the);
@@ -31,15 +31,12 @@ extern void xs_base64_encode(xsMachine *the);
 extern void xs_base64_decode(xsMachine *the);
 extern void modInstallBase64(xsMachine *the);
 
-#define mxSnapshotCallbackCount 20
+#define mxSnapshotCallbackCount 17
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand,
-	xs_clearTimer,
 	xs_print,
 	xs_setImmediate,
 	xs_gc,
-	xs_setInterval,
-	xs_setTimeout,
 	fx_lockdown,
 	fx_harden,
 	fx_purify,
@@ -274,20 +271,20 @@ void xsBuildAgent(xsMachine* machine)
 	xsBeginHost(machine);
 	xsVars(1);
 	
-	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+// 	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_setImmediate, 1);
 	xsDefine(xsGlobal, xsID("setImmediate"), xsResult, xsDontEnum);
 	
-	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(xs_setInterval, 1);
-	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
-	
-	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(xs_setTimeout, 1);
-	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+// 	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_setInterval, 1);
+// 	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
+
+// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+// 	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_setTimeout, 1);
+// 	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
 	
 	xsResult = xsNewHostFunction(xs_gc, 1);
 	xsDefine(xsGlobal, xsID("gc"), xsResult, xsDontEnum);
