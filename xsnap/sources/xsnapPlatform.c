@@ -554,6 +554,17 @@ void fxSetCurrentMeter(txMachine* the, txUnsigned value)
 }
 #endif
 
+void fxSetHostFunctionProperty(txMachine* the, txSlot* property, txCallback call, txInteger length, txID id)
+{
+	txSlot* home = the->stack;
+	txSlot* function = fxNewHostFunction(the, call, length, id);
+	txSlot* slot = mxFunctionInstanceHome(function);
+	slot->value.home.object = home->value.reference;
+	property->kind = the->stack->kind;
+	property->value = the->stack->value;
+	mxPop();
+}
+
 void fx_lockdown(txMachine* the)
 {
 #define mxHardenBuiltInCall \
@@ -564,10 +575,12 @@ void fx_lockdown(txMachine* the)
 	mxRunCount(1); \
 	mxPop()
 
+	txSlot* instance;
 	txSlot* property;
+	txSlot* item;
 	txSlot* harden;
 	txInteger id;
-
+	
 	if (mxProgram.value.reference->flag & XS_DONT_MARSHALL_FLAG)
 		mxTypeError("lockdown already called");
 	mxProgram.value.reference->flag |= XS_DONT_MARSHALL_FLAG;
@@ -588,29 +601,51 @@ void fx_lockdown(txMachine* the)
 	property->kind = mxThrowTypeErrorFunction.kind;
 	property->value = mxThrowTypeErrorFunction.value;
 
-	property = mxFunctionInstanceCode(mxDateConstructor.value.reference);
+	instance = fxNewArray(the, _Compartment);
+	property = the->stackPrototypes - 1;
+	item = instance->next->value.array.address;
+	for (id = 0; id < XS_SYMBOL_ID_COUNT; id++) {
+		*((txIndex*)item) = id;
+		property--;
+		item++;
+	}
+	for (; id < _Compartment; id++) {
+		*((txIndex*)item) = id;
+		item->kind = property->kind;
+		item->value = property->value;
+		property--;
+		item++;
+	}
+	
+	fxDuplicateInstance(the, mxDateConstructor.value.reference);
+	property = mxFunctionInstanceCode(the->stack->value.reference);
 	property->value.callback.address = mxCallback(fx_Date_secure);
+	property = mxBehaviorGetProperty(the, the->stack->value.reference, mxID(_now), 0, XS_OWN);
+	fxSetHostFunctionProperty(the, property, mxCallback(fx_Date_now_secure), 0, mxID(_now));
+	property = mxBehaviorGetProperty(the, mxDatePrototype.value.reference, mxID(_constructor), 0, XS_OWN);
+	property->kind = the->stack->kind;
+	property->value = the->stack->value;
+	mxPull(instance->next->value.array.address[_Date]);
+	
+	fxDuplicateInstance(the, mxMathObject.value.reference);
+	property = mxBehaviorGetProperty(the, the->stack->value.reference, mxID(_random), 0, XS_OWN);
+	fxSetHostFunctionProperty(the, property, mxCallback(fx_Math_random_secure), 0, mxID(_random));
+	mxPull(instance->next->value.array.address[_Math]);
 
-	property = mxBehaviorGetProperty(the, mxDateConstructor.value.reference, mxID(_now), 0, XS_OWN);
-	property = mxFunctionInstanceCode(property->value.reference);
-	property->value.callback.address = mxCallback(fx_Date_now_secure);
-
-	property = mxBehaviorGetProperty(the, mxMathObject.value.reference, mxID(_random), 0, XS_OWN);
-	property = mxFunctionInstanceCode(property->value.reference);
-	property->value.callback.address = mxCallback(fx_Math_random_secure);
+	mxPull(mxCompartmentGlobal);
 
 	mxTemporary(harden);
 	mxPush(mxGlobal);
 	fxGetID(the, fxID(the, "harden"));
 	mxPullSlot(harden);
-
+	
 	for (id = XS_SYMBOL_ID_COUNT; id < _Infinity; id++) {
 		mxHardenBuiltInCall; mxPush(the->stackPrototypes[-1 - id]); mxHardenBuiltInRun;
 	}
 	for (id = _Compartment; id < XS_INTRINSICS_COUNT; id++) {
 		mxHardenBuiltInCall; mxPush(the->stackPrototypes[-1 - id]); mxHardenBuiltInRun;
 	}
-
+	
 	mxHardenBuiltInCall; mxPush(mxArgumentsSloppyPrototype); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPush(mxArgumentsStrictPrototype); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPush(mxArrayIteratorPrototype); mxHardenBuiltInRun;
@@ -638,7 +673,7 @@ void fx_lockdown(txMachine* the)
 	mxHardenBuiltInCall; mxPush(mxOnRejectedPromiseFunction); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPush(mxOnResolvedPromiseFunction); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPush(mxOnThenableFunction); mxHardenBuiltInRun;
-
+	
 	mxHardenBuiltInCall; mxPushReference(mxArrayLengthAccessor.value.accessor.getter); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPushReference(mxArrayLengthAccessor.value.accessor.setter); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPushReference(mxStringAccessor.value.accessor.getter); mxHardenBuiltInRun;
@@ -647,114 +682,126 @@ void fx_lockdown(txMachine* the)
 	mxHardenBuiltInCall; mxPushReference(mxProxyAccessor.value.accessor.setter); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPushReference(mxTypedArrayAccessor.value.accessor.getter); mxHardenBuiltInRun;
 	mxHardenBuiltInCall; mxPushReference(mxTypedArrayAccessor.value.accessor.setter); mxHardenBuiltInRun;
-
+	
 	mxHardenBuiltInCall; mxPush(mxArrayPrototype); fxGetID(the, mxID(_Symbol_unscopables)); mxHardenBuiltInRun;
+	
+	mxHardenBuiltInCall; mxPush(mxCompartmentGlobal); mxHardenBuiltInRun;
+	
+	mxFunctionInstanceCode(mxThrowTypeErrorFunction.value.reference)->ID = XS_NO_ID; 
+	mxFunctionInstanceHome(mxThrowTypeErrorFunction.value.reference)->value.home.object = NULL;
 
-	mxHardenBuiltInCall; mxPush(mxGlobal); mxHardenBuiltInRun;
+	mxPop();
+}
 
+static void fx_hardenQueue(txMachine* the, txSlot* list, txSlot* instance)
+{
+	txSlot* item;
+	if (instance->flag & XS_DONT_MARSHALL_FLAG)
+		return;
+	item = fxNewSlot(the);
+	item->value.reference = instance;
+	item->kind = XS_REFERENCE_KIND;
+	list->value.list.last->next = item;
+	list->value.list.last = item;
+}
+
+static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot* freeze, txSlot* list)
+{
+	txSlot* instance = reference->value.reference;
+	txSlot* at;
+	txSlot* property;
+	
+	mxPush(mxObjectConstructor);
+	mxPushSlot(freeze);
+	mxCall();
+	mxPushSlot(reference);
+	mxRunCount(1);
+	mxPop();
+	
+	instance->flag |= XS_DONT_MARSHALL_FLAG;
+
+	at = fxNewInstance(the);
+	mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
+	
+	mxTemporary(property);
+	mxBehaviorGetPrototype(the, instance, property);
+	if (property->kind == XS_REFERENCE_KIND)
+		fx_hardenQueue(the, list, property->value.reference);
+	
+	while ((at = at->next)) {
+		if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+			if (property->kind == XS_REFERENCE_KIND)
+				fx_hardenQueue(the, list, property->value.reference);
+			else if (property->kind == XS_ACCESSOR_KIND) {
+				if (property->value.accessor.getter)
+					fx_hardenQueue(the, list, property->value.accessor.getter);
+				if (property->value.accessor.setter)
+					fx_hardenQueue(the, list, property->value.accessor.setter);
+			}
+		}
+	}
+	
+	mxPop();
 	mxPop();
 }
 
 void fx_harden(txMachine* the)
 {
+	txSlot* freeze;
+	txSlot* slot;
+	txSlot* list;
+	txSlot* item;
+
 	if (!(mxProgram.value.reference->flag & XS_DONT_MARSHALL_FLAG))
 		mxTypeError("call lockdown before harden");
 
-	if (mxArgc > 0) {
-		txSlot* slot = mxArgv(0);
-		if (slot->kind == XS_REFERENCE_KIND) {
-			txSlot* instance = slot->value.reference;
-			txSlot* at;
-			txSlot* property;
-			if (instance->flag & XS_DONT_MARSHALL_FLAG)
-				return;
+	if (mxArgc == 0)
+		return;
+		
+	*mxResult = *mxArgv(0);
+		
+	slot = mxArgv(0);	
+	if (slot->kind != XS_REFERENCE_KIND)
+		return;
+	slot = slot->value.reference;
+	if (slot->flag & XS_DONT_MARSHALL_FLAG)
+		return;
 
-			if (!mxBehaviorPreventExtensions(the, instance))
-				mxTypeError("extensible object");
-			at = fxNewInstance(the);
-			mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
-
-			mxPushUndefined();
-			property = the->stack;
-			while ((at = at->next)) {
-				if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
-					txFlag mask = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG;
-					if (property->kind == XS_ACCESSOR_KIND) {
-						if (property->value.accessor.getter)
-							mask |= XS_GETTER_FLAG;
-						if (property->value.accessor.setter)
-							mask |= XS_SETTER_FLAG;
-					}
-					else {
-						mask |= XS_DONT_SET_FLAG;
-						property->flag |= XS_DONT_SET_FLAG;
-					}
-					property->flag |= XS_DONT_DELETE_FLAG;
-					mxBehaviorDefineOwnProperty(the, instance, at->value.at.id, at->value.at.index, property, mask);
-				}
+	mxTemporary(freeze);
+	mxPush(mxObjectConstructor);
+	mxGetID(mxID(_freeze));
+	mxPullSlot(freeze);
+	
+	mxTemporary(list);
+	list->value.list.first = C_NULL;	
+	list->value.list.last = C_NULL;	
+	list->kind = XS_LIST_KIND;
+		
+	item = fxNewSlot(the);
+	item->value.reference = slot;
+	item->kind = XS_REFERENCE_KIND;
+	list->value.list.first = item;
+	list->value.list.last = item;
+		
+	{
+		mxTry(the) {
+			while (item) {
+				fx_hardenFreezeAndTraverse(the, item, freeze, list);
+				item = item->next;
 			}
-			mxPop();
-
-			instance->flag |= XS_DONT_MARSHALL_FLAG;
-
-			at = the->stack->value.reference;
-			mxPushUndefined();
-			property = the->stack;
-			mxBehaviorGetPrototype(the, instance, property);
-			if (property->kind == XS_REFERENCE_KIND) {
-				if (!(property->value.reference->flag & XS_DONT_MARSHALL_FLAG)) {
-					mxPushSlot(mxThis);
-					mxPushSlot(mxFunction);
-					mxCall();
-					mxPushSlot(property);
-					mxRunCount(1);
-					mxPop();
-				}
-			}
-			while ((at = at->next)) {
-				if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
-					if (property->kind == XS_REFERENCE_KIND) {
-						if (!(property->value.reference->flag & XS_DONT_MARSHALL_FLAG)) {
-							mxPushSlot(mxThis);
-							mxPushSlot(mxFunction);
-							mxCall();
-							mxPushSlot(property);
-							mxRunCount(1);
-							mxPop();
-						}
-					}
-					else if (property->kind == XS_ACCESSOR_KIND) {
-						if (property->value.accessor.getter) {
-							if (!(property->value.accessor.getter->flag & XS_DONT_MARSHALL_FLAG)) {
-								mxPushSlot(mxThis);
-								mxPushSlot(mxFunction);
-								mxCall();
-								mxPushReference(property->value.accessor.getter);
-								mxPushBoolean(1);
-								mxRunCount(2);
-								mxPop();
-							}
-						}
-						if (property->value.accessor.setter) {
-							if (!(property->value.accessor.setter->flag & XS_DONT_MARSHALL_FLAG)) {
-								mxPushSlot(mxThis);
-								mxPushSlot(mxFunction);
-								mxCall();
-								mxPushReference(property->value.accessor.setter);
-								mxPushBoolean(1);
-								mxRunCount(2);
-								mxPop();
-							}
-						}
-					}
-				}
-			}
-			mxPop();
-
-			mxPop();
 		}
-		*mxResult = *mxArgv(0);
+		mxCatch(the) {
+			item = list->value.list.first;
+			while (item) {
+				item->value.reference->flag &= ~XS_DONT_MARSHALL_FLAG;
+				item = item->next;
+			}
+			fxJump(the);
+		}
 	}
+		
+	mxPop();
+	mxPop();
 }
 
 typedef struct sxVerifyLink txVerifyLink;
@@ -804,12 +851,12 @@ void fxVerifyEnvironment(txMachine* the, txVerifyList *list, txSlot* environment
 	txVerifyLink link;
 	txSlot* prototype;
 	txSlot* property;
-
+	
 	if (environment->value.instance.garbage)
 		return;
 	environment->value.instance.garbage = *garbage;
 	*garbage = environment;
-
+	
 	link.previous = list->last;
 	link.next = C_NULL;
 	if (list->first)
@@ -817,7 +864,7 @@ void fxVerifyEnvironment(txMachine* the, txVerifyList *list, txSlot* environment
 	else
 		list->first = &link;
 	list->last = &link;
-
+	
 	prototype = environment->value.instance.prototype;
 	if (prototype) {
 		link.id = mxID(___proto__);
@@ -841,7 +888,7 @@ void fxVerifyEnvironment(txMachine* the, txVerifyList *list, txSlot* environment
 		}
 		property = property->next;
 	}
-
+	
 	if (link.previous)
 		link.previous->next = C_NULL;
 	else
@@ -899,13 +946,13 @@ void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSl
 	txVerifyLink link;
 	txSlot* prototype;
 	txSlot* property;
-
+	
 	if (instance->value.instance.garbage)
 		return;
 	instance->value.instance.garbage = *garbage;
 	*garbage = instance;
-
-
+	
+	
 	link.previous = list->last;
 	link.next = C_NULL;
 	if (list->first)
@@ -913,14 +960,14 @@ void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSl
 	else
 		list->first = &link;
 	list->last = &link;
-
+	
 	if (!(instance->flag & XS_DONT_PATCH_FLAG)) {
 		link.id = XS_NO_ID;
 		link.index = 0;
 		link.name = "Extensible";
 		fxVerifyError(the, list);
 	}
-
+	
 	prototype = fxGetPrototype(the, instance);
 	if (prototype) {
 		link.id = mxID(___proto__);
@@ -932,7 +979,7 @@ void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSl
 	while (property) {
 		if (property->flag & XS_INTERNAL_FLAG) {
 			switch (property->kind) {
-			case XS_ARRAY_KIND:
+			case XS_ARRAY_KIND: 
 				{
 					txSlot* address = property->value.array.address;
 					if (address) {
@@ -946,7 +993,7 @@ void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSl
 							address++;
 						}
 					}
-				}
+				} 
 				break;
 			case XS_ARRAY_BUFFER_KIND:
 				if (property->value.arrayBuffer.address != C_NULL) {
@@ -1052,7 +1099,7 @@ void fxVerifyInstance(txMachine* the, txVerifyList *list, txSlot* instance, txSl
 		}
 		property = property->next;
 	}
-
+	
 	if (link.previous)
 		link.previous->next = C_NULL;
 	else
@@ -1064,14 +1111,14 @@ void fxVerifyProperty(txMachine* the, txVerifyList *list, txSlot* property, txSl
 {
 	txBoolean immutable = 1;
 
-	if (property->kind != XS_ACCESSOR_KIND)
+	if (property->kind != XS_ACCESSOR_KIND) 
 		if (!(property->flag & XS_DONT_SET_FLAG))
 			immutable = 0;
 	if (!(property->flag & XS_DONT_DELETE_FLAG))
 		immutable = 0;
 	if (!immutable) {
 		fxVerifyError(the, list);
-	}
+	}	
 	switch (property->kind) {
 	case XS_REFERENCE_KIND:
 		fxVerifyInstance(the, list, property->value.reference, garbage);
@@ -1775,3 +1822,6 @@ void fxDumpSlotTable(FILE* file, txByte* buffer, txSize size)
 		address++;
 	}
 }
+
+
+
