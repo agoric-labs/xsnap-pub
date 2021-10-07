@@ -554,6 +554,11 @@ void fxSetCurrentMeter(txMachine* the, txUnsigned value)
 }
 #endif
 
+txSize fxGetCurrentHeapCount(txMachine* the)
+{
+	return the->currentHeapCount;
+}
+
 void fx_lockdown(txMachine* the)
 {
 #define mxHardenBuiltInCall \
