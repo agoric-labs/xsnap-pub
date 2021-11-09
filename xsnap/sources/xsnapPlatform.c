@@ -693,10 +693,10 @@ void fx_lockdown(txMachine* the)
 	mxPop();
 }
 
-static void fx_hardenQueue(txMachine* the, txSlot* list, txSlot* instance)
+static void fx_hardenQueue(txMachine* the, txSlot* list, txSlot* instance, txFlag flag)
 {
 	txSlot* item;
-	if (instance->flag & XS_DONT_MARSHALL_FLAG)
+	if (instance->flag & flag)
 		return;
 	item = fxNewSlot(the);
 	item->value.reference = instance;
@@ -705,11 +705,12 @@ static void fx_hardenQueue(txMachine* the, txSlot* list, txSlot* instance)
 	list->value.list.last = item;
 }
 
-static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot* freeze, txSlot* list)
+static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot* freeze, txSlot* list, txFlag flag)
 {
 	txSlot* instance = reference->value.reference;
 	txSlot* at;
 	txSlot* property;
+	txSlot* slot;
 	
 	mxPush(mxObjectConstructor);
 	mxPushSlot(freeze);
@@ -717,8 +718,34 @@ static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot
 	mxPushSlot(reference);
 	mxRunCount(1);
 	mxPop();
-	
-	instance->flag |= XS_DONT_MARSHALL_FLAG;
+	if (flag == XS_DONT_MODIFY_FLAG) {
+		property = instance->next;
+		while (property) {
+			if (property->flag & XS_INTERNAL_FLAG) {
+				switch (property->kind) {
+				case XS_ARRAY_BUFFER_KIND:
+				case XS_DATE_KIND:
+				case XS_MAP_KIND:
+				case XS_SET_KIND:
+				case XS_WEAK_MAP_KIND:
+				case XS_WEAK_SET_KIND:
+					property->flag |= XS_DONT_SET_FLAG;
+					break;				
+				case XS_PRIVATE_KIND:
+					slot = property->value.private.first;
+					while (slot) {
+						if (slot->kind != XS_ACCESSOR_KIND) 
+							slot->flag |= XS_DONT_SET_FLAG;
+						slot->flag |= XS_DONT_DELETE_FLAG;
+						slot = slot->next;
+					}
+					break;
+				}
+			}	
+			property = property->next;
+		}	
+	}	
+	instance->flag |= flag;
 
 	at = fxNewInstance(the);
 	mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
@@ -726,18 +753,45 @@ static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot
 	mxTemporary(property);
 	mxBehaviorGetPrototype(the, instance, property);
 	if (property->kind == XS_REFERENCE_KIND)
-		fx_hardenQueue(the, list, property->value.reference);
+		fx_hardenQueue(the, list, property->value.reference, flag);
 	
 	while ((at = at->next)) {
 		if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
 			if (property->kind == XS_REFERENCE_KIND)
-				fx_hardenQueue(the, list, property->value.reference);
+				fx_hardenQueue(the, list, property->value.reference, flag);
 			else if (property->kind == XS_ACCESSOR_KIND) {
 				if (property->value.accessor.getter)
-					fx_hardenQueue(the, list, property->value.accessor.getter);
+					fx_hardenQueue(the, list, property->value.accessor.getter, flag);
 				if (property->value.accessor.setter)
-					fx_hardenQueue(the, list, property->value.accessor.setter);
+					fx_hardenQueue(the, list, property->value.accessor.setter, flag);
 			}
+		}
+	}
+	
+	if (flag == XS_DONT_MODIFY_FLAG) {
+		property = instance->next;
+		while (property) {
+			if (property->flag & XS_INTERNAL_FLAG) {
+				if (property->kind == XS_PRIVATE_KIND) {
+					txSlot* item = property->value.private.first;
+					while (item) {
+						if (property->kind == XS_REFERENCE_KIND)
+							fx_hardenQueue(the, list, property->value.reference, flag);
+						else if (property->kind == XS_ACCESSOR_KIND) {
+							if (property->value.accessor.getter)
+								fx_hardenQueue(the, list, property->value.accessor.getter, flag);
+							if (property->value.accessor.setter)
+								fx_hardenQueue(the, list, property->value.accessor.setter, flag);
+						}
+						item = item->next;
+					}
+				}
+				else if (property->kind == XS_DATA_VIEW_KIND) {
+					property = property->next;
+					fx_hardenQueue(the, list, property->value.reference, flag);
+				}
+			}
+			property = property->next;
 		}
 	}
 	
@@ -747,6 +801,7 @@ static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot
 
 void fx_harden(txMachine* the)
 {
+	txFlag flag = XS_DONT_MARSHALL_FLAG;
 	txSlot* freeze;
 	txSlot* slot;
 	txSlot* list;
@@ -763,8 +818,17 @@ void fx_harden(txMachine* the)
 	slot = mxArgv(0);	
 	if (slot->kind != XS_REFERENCE_KIND)
 		return;
+// 	if (mxArgc > 1) {
+// 		txString string = fxToString(the, mxArgv(1));
+// 		if (c_strcmp(string, "freeze") == 0)
+// 			flag = XS_DONT_MARSHALL_FLAG;
+// 		else if (c_strcmp(string, "petrify") == 0)
+// 			flag = XS_DONT_MODIFY_FLAG;
+// 		else
+// 			mxTypeError("invalid integrity");
+// 	}
 	slot = slot->value.reference;
-	if (slot->flag & XS_DONT_MARSHALL_FLAG)
+	if (slot->flag & flag)
 		return;
 
 	mxTemporary(freeze);
@@ -786,14 +850,14 @@ void fx_harden(txMachine* the)
 	{
 		mxTry(the) {
 			while (item) {
-				fx_hardenFreezeAndTraverse(the, item, freeze, list);
+				fx_hardenFreezeAndTraverse(the, item, freeze, list, flag);
 				item = item->next;
 			}
 		}
 		mxCatch(the) {
 			item = list->value.list.first;
 			while (item) {
-				item->value.reference->flag &= ~XS_DONT_MARSHALL_FLAG;
+				item->value.reference->flag &= ~flag;
 				item = item->next;
 			}
 			fxJump(the);
@@ -937,10 +1001,27 @@ void fxVerifyErrorString(txMachine* the, txID id, txIndex index, txString string
 
 void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instance)
 {
-	txSlot* prototype;
 	txSlot* property;
+	txSlot* prototype;
 	
 	instance->flag |= XS_LEVEL_FLAG;
+	
+	if (instance->next && (instance->next->ID == XS_ENVIRONMENT_BEHAVIOR)) {
+		txSlot* property = instance->next->next;
+		while (property) {
+			if (property->ID != XS_NO_ID) { // skip private fields initializers
+				txSlot* closure = property->value.closure;
+				if (!(closure->flag & XS_DONT_SET_FLAG)) {
+					fxVerifyError(the, path, property->ID, 0, C_NULL);
+				}
+				if (closure->kind == XS_REFERENCE_KIND) {
+					fxVerifyQueue(the, list, path, closure->value.reference, property->ID, 0, C_NULL);
+				}
+			}
+			property = property->next;
+		}
+		return;
+	}
 	
 	if (!(instance->flag & XS_DONT_PATCH_FLAG)) {
 		fxVerifyError(the, path, XS_NO_ID, 0, "Extensible");
@@ -969,12 +1050,11 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				} 
 				break;
 			case XS_ARRAY_BUFFER_KIND:
-				if (property->value.arrayBuffer.address != C_NULL) {
-					fxVerifyError(the, path, XS_NO_ID, 0, "ArrayBufferData");
+				if (!(property->flag & XS_DONT_SET_FLAG)) {
+					if (property->value.arrayBuffer.address != C_NULL)
+						fxVerifyError(the, path, XS_NO_ID, 0, "ArrayBufferData");
 				}
 				break;
-			case XS_CALLBACK_KIND:
-			case XS_CALLBACK_X_KIND:
 			case XS_CODE_KIND:
 			case XS_CODE_X_KIND:
 				if (property->value.code.closures) {
@@ -986,19 +1066,20 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				fxVerifyQueue(the, list, path, property->value.reference, XS_NO_ID, 0, "ViewedArrayBuffer");
 				break;
 			case XS_DATE_KIND:
-				fxVerifyError(the, path, XS_NO_ID, 0, "DateValue");
+				if (!(property->flag & XS_DONT_SET_FLAG))
+					fxVerifyError(the, path, XS_NO_ID, 0, "DateValue");
 				break;
 			case XS_REGEXP_KIND:
 				break;
 			case XS_MAP_KIND:
-				property = property->next;
-				fxVerifyError(the, path, XS_NO_ID, 0, "MapData");
+				if (!(property->flag & XS_DONT_SET_FLAG))
+					fxVerifyError(the, path, XS_NO_ID, 0, "MapData");
 				break;
 			case XS_PRIVATE_KIND:
 				{
 					txSlot* item = property->value.private.first;
 					while (item) {
-						fxVerifyProperty(the, list, path, property, item->ID, 0, C_NULL);
+						fxVerifyProperty(the, list, path, item, item->ID, 0, C_NULL);
 						item = item->next;
 					}
 				}
@@ -1012,8 +1093,8 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				}
 				break;
 			case XS_SET_KIND:
-				property = property->next;
-				fxVerifyError(the, path, XS_NO_ID, 0, "SetData");
+				if (!(property->flag & XS_DONT_SET_FLAG))
+					fxVerifyError(the, path, XS_NO_ID, 0, "SetData");
 				break;
 			case XS_TYPED_ARRAY_KIND:
 				property = property->next;
@@ -1021,26 +1102,17 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				fxVerifyQueue(the, list, path, property->value.reference, XS_NO_ID, 0, "ViewedArrayBuffer");
 				break;
 			case XS_WEAK_MAP_KIND:
-				fxVerifyError(the, path, XS_NO_ID, 0, "WeakMapData");
+				if (!(property->flag & XS_DONT_SET_FLAG))
+					fxVerifyError(the, path, XS_NO_ID, 0, "WeakMapData");
 				break;
 			case XS_WEAK_SET_KIND:
-				fxVerifyError(the, path, XS_NO_ID, 0, "WeakSetData");
+				if (!(property->flag & XS_DONT_SET_FLAG))
+					fxVerifyError(the, path, XS_NO_ID, 0, "WeakSetData");
 				break;
 			}
 		}
-		else if (property->ID != XS_NO_ID) {
-			if (property->kind == XS_CLOSURE_KIND) {
-				txSlot* closure = property->value.closure;
-				if (!(closure->flag & XS_DONT_SET_FLAG)) {
-					fxVerifyError(the, path, property->ID, 0, C_NULL);
-				}
-				if (closure->kind == XS_REFERENCE_KIND) {
-					fxVerifyQueue(the, list, path, closure->value.reference, property->ID, 0, C_NULL);
-				}
-			}
-			else {
-				fxVerifyProperty(the, list, path, property, property->ID, 0, C_NULL);
-			}
+		else {
+			fxVerifyProperty(the, list, path, property, property->ID, 0, C_NULL);
 		}
 		property = property->next;
 	}
@@ -1592,7 +1664,10 @@ void fxDumpSlot(FILE* file, txSlot* slot)
 	case XS_ARRAY_BUFFER_KIND: {
 		fprintf(file, "arrayBuffer = { .address = ");
 		fxDumpChunkAddress(file, slot->value.arrayBuffer.address);
-		fprintf(file, ", length = %d }", (int)slot->value.arrayBuffer.length);
+		fprintf(file, " }");
+	} break;
+	case XS_BUFFER_INFO_KIND: {
+		fprintf(file, "bufferInfo = { .length = %d, maxLength = %d }", slot->value.bufferInfo.length, slot->value.bufferInfo.maxLength);
 	} break;
 	case XS_CALLBACK_KIND: {
 		fprintf(file, "callback");
