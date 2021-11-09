@@ -108,6 +108,7 @@ When hardening `h`, the script prints `hardenit`!
 The experimental `purify` function checks the immutability of the passed object.
 
 - The `purify` function checks the passed object, then checks its prototypes and all its properties.
+- The `purify` function traverses objects breadth first. The prototype of an object, if any, is treated like the first property of the object.
 - The `purify` function does not use standard internal methods so JS code is never executed while checking.
 - The `purify` function returns a string: a `'\n'` separated list of all mutable property paths, or the empty string if all properties are immutable.
 
