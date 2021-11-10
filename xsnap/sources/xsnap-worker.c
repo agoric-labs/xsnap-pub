@@ -42,6 +42,8 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 static int fxWriteNetString(FILE* outStream, char* prefix, char* buf, size_t len);
 static char* fxWriteNetStringError(int code);
 
+extern xsIntegerValue fxGetCurrentHeapCount(xsMachine* the);
+
 extern void xs_textdecoder(xsMachine *the);
 extern void xs_textdecoder_decode(xsMachine *the);
 extern void xs_textdecoder_get_encoding(xsMachine *the);
@@ -668,6 +670,7 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 {
 	char fmt[] = ("." // OK
 				  "{"
+				  "\"currentHeapCount\":%u,"
 				  "\"compute\":%u,"
 				  "\"allocate\":%u}"
 				  "\1" // separate meter info from result
@@ -676,6 +679,7 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 	char prefix[8 + sizeof fmt + 8 * sizeof numeral64];
 	// Prepend the meter usage to the reply.
 	snprintf(prefix, sizeof(prefix) - 1, fmt,
+			 fxGetCurrentHeapCount(the),
 			 meterIndex, the->allocatedSpace);
 	return fxWriteNetString(outStream, prefix, buf, length);
 }
