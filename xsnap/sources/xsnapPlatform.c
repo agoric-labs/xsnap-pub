@@ -565,6 +565,11 @@ void fxSetHostFunctionProperty(txMachine* the, txSlot* property, txCallback call
 	mxPop();
 }
 
+txSize fxGetCurrentHeapCount(txMachine* the)
+{
+	return the->currentHeapCount;
+}
+
 void fx_lockdown(txMachine* the)
 {
 #define mxHardenBuiltInCall \
