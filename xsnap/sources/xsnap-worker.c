@@ -64,7 +64,7 @@ extern void modInstallBase64(xsMachine *the);
 // The order of the callbacks materially affects how they are introduced to
 // code that runs from a snapshot, so must be consistent in the face of
 // upgrade.
-#define mxSnapshotCallbackCount 17
+#define mxSnapshotCallbackCount 20
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand, // 0
 	xs_print, // 1
@@ -86,6 +86,10 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 
 	xs_base64_encode, // 15
 	xs_base64_decode, // 16
+
+	fx_lockdown, // 17
+	fx_harden, // 18
+	fx_purify, // 19
 
 	// fx_setInterval,
 	// fx_setTimeout,
