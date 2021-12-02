@@ -1045,11 +1045,11 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				{
 					txSlot* address = property->value.array.address;
 					if (address) {
-						txIndex size = (((txChunk*)(((txByte*)address) - sizeof(txChunk)))->size) / sizeof(txSlot);
-						txSlot* limit = address + size;
-						while (address < limit) {
+						txIndex offset = 0, size = (((txChunk*)(((txByte*)address) - sizeof(txChunk)))->size) / sizeof(txSlot);
+						while (offset < size) {
+							address = property->value.array.address + offset;
 							fxVerifyProperty(the, list, path, address, XS_NO_ID, *((txIndex*)address), C_NULL);
-							address++;
+							offset++;
 						}
 					}
 				} 
