@@ -46,12 +46,17 @@ static txHostHooks gxTimerHooks = {
 
 void fxClearTimer(txMachine* the)
 {
-	txJob* job = fxGetHostData(the, mxArgv(0));
-	if (job) {
-        fxForget(the, &job->self);
-        fxSetHostData(the, mxArgv(0), NULL);
-		job->the = NULL;
+	txHostHooks* hooks = fxGetHostHooks(the, mxArgv(0));
+	if (hooks == &gxTimerHooks) {
+		txJob* job = fxGetHostData(the, mxArgv(0));
+		if (job) {
+			fxForget(the, &job->self);
+			fxSetHostData(the, mxArgv(0), NULL);
+			job->the = NULL;
+		}
 	}
+	else
+		mxTypeError("no timer");
 }
 
 void fxDestroyTimer(void* data)
