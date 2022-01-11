@@ -78,8 +78,6 @@
 	size_t allocatedSpace;
 
 #define mxUseDefaultBuildKeys 1
-#define mxUseDefaultFindModule 1
-#define mxUseDefaultLoadModule 1
 #define mxUseDefaultParseScript 1
 #define mxUseDefaultSharedChunks 1
 
