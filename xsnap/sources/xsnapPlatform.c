@@ -833,43 +833,68 @@ static void fx_hardenQueue(txMachine* the, txSlot* list, txSlot* instance, txFla
 static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot* freeze, txSlot* list, txFlag flag)
 {
 	txSlot* instance = reference->value.reference;
-	txSlot* at;
 	txSlot* property;
-	txSlot* slot;
-	
-	mxPush(mxObjectConstructor);
-	mxPushSlot(freeze);
-	mxCall();
-	mxPushSlot(reference);
-	mxRunCount(1);
-	mxPop();
-	if (flag == XS_DONT_MODIFY_FLAG) {
-		property = instance->next;
-		while (property) {
-			if (property->flag & XS_INTERNAL_FLAG) {
-				switch (property->kind) {
-				case XS_ARRAY_BUFFER_KIND:
-				case XS_DATE_KIND:
-				case XS_MAP_KIND:
-				case XS_SET_KIND:
-				case XS_WEAK_MAP_KIND:
-				case XS_WEAK_SET_KIND:
-					property->flag |= XS_DONT_SET_FLAG;
-					break;				
-				case XS_PRIVATE_KIND:
-					slot = property->value.private.first;
-					while (slot) {
-						if (slot->kind != XS_ACCESSOR_KIND) 
-							slot->flag |= XS_DONT_SET_FLAG;
-						slot->flag |= XS_DONT_DELETE_FLAG;
-						slot = slot->next;
-					}
-					break;
-				}
-			}	
-			property = property->next;
-		}	
+	txBoolean useIndexes = 1;
+	txSlot* at;
+// 	txSlot* slot;
+
+	if (!mxBehaviorPreventExtensions(the, instance))
+		mxTypeError("extensible object");
+		
+	property = instance->next;	
+	if (property && (property->flag & XS_INTERNAL_FLAG) && (property->kind == XS_TYPED_ARRAY_KIND)) {
+		 useIndexes = 0;
 	}
+
+	at = fxNewInstance(the);
+	mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
+	mxPushUndefined();
+	property = the->stack;
+	while ((at = at->next)) {
+		if ((at->value.at.id != XS_NO_ID) || useIndexes) {
+			if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+				txFlag mask = XS_DONT_DELETE_FLAG;
+				property->flag |= XS_DONT_DELETE_FLAG;
+				if (property->kind != XS_ACCESSOR_KIND) {
+					mask |= XS_DONT_SET_FLAG;
+					property->flag |= XS_DONT_SET_FLAG;
+				}
+				property->kind = XS_UNINITIALIZED_KIND;
+				if (!mxBehaviorDefineOwnProperty(the, instance, at->value.at.id, at->value.at.index, property, mask))
+					mxTypeError("cannot configure property");
+			}
+		}
+	}
+	mxPop();
+	mxPop();
+	
+// 	if (flag == XS_DONT_MODIFY_FLAG) {
+// 		property = instance->next;
+// 		while (property) {
+// 			if (property->flag & XS_INTERNAL_FLAG) {
+// 				switch (property->kind) {
+// 				case XS_ARRAY_BUFFER_KIND:
+// 				case XS_DATE_KIND:
+// 				case XS_MAP_KIND:
+// 				case XS_SET_KIND:
+// 				case XS_WEAK_MAP_KIND:
+// 				case XS_WEAK_SET_KIND:
+// 					property->flag |= XS_DONT_SET_FLAG;
+// 					break;				
+// 				case XS_PRIVATE_KIND:
+// 					slot = property->value.private.first;
+// 					while (slot) {
+// 						if (slot->kind != XS_ACCESSOR_KIND) 
+// 							slot->flag |= XS_DONT_SET_FLAG;
+// 						slot->flag |= XS_DONT_DELETE_FLAG;
+// 						slot = slot->next;
+// 					}
+// 					break;
+// 				}
+// 			}	
+// 			property = property->next;
+// 		}	
+// 	}
 	instance->flag |= flag;
 
 	at = fxNewInstance(the);
@@ -893,32 +918,32 @@ static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot
 		}
 	}
 	
-	if (flag == XS_DONT_MODIFY_FLAG) {
-		property = instance->next;
-		while (property) {
-			if (property->flag & XS_INTERNAL_FLAG) {
-				if (property->kind == XS_PRIVATE_KIND) {
-					txSlot* item = property->value.private.first;
-					while (item) {
-						if (property->kind == XS_REFERENCE_KIND)
-							fx_hardenQueue(the, list, property->value.reference, flag);
-						else if (property->kind == XS_ACCESSOR_KIND) {
-							if (property->value.accessor.getter)
-								fx_hardenQueue(the, list, property->value.accessor.getter, flag);
-							if (property->value.accessor.setter)
-								fx_hardenQueue(the, list, property->value.accessor.setter, flag);
-						}
-						item = item->next;
-					}
-				}
-				else if (property->kind == XS_DATA_VIEW_KIND) {
-					property = property->next;
-					fx_hardenQueue(the, list, property->value.reference, flag);
-				}
-			}
-			property = property->next;
-		}
-	}
+// 	if (flag == XS_DONT_MODIFY_FLAG) {
+// 		property = instance->next;
+// 		while (property) {
+// 			if (property->flag & XS_INTERNAL_FLAG) {
+// 				if (property->kind == XS_PRIVATE_KIND) {
+// 					txSlot* item = property->value.private.first;
+// 					while (item) {
+// 						if (property->kind == XS_REFERENCE_KIND)
+// 							fx_hardenQueue(the, list, property->value.reference, flag);
+// 						else if (property->kind == XS_ACCESSOR_KIND) {
+// 							if (property->value.accessor.getter)
+// 								fx_hardenQueue(the, list, property->value.accessor.getter, flag);
+// 							if (property->value.accessor.setter)
+// 								fx_hardenQueue(the, list, property->value.accessor.setter, flag);
+// 						}
+// 						item = item->next;
+// 					}
+// 				}
+// 				else if (property->kind == XS_DATA_VIEW_KIND) {
+// 					property = property->next;
+// 					fx_hardenQueue(the, list, property->value.reference, flag);
+// 				}
+// 			}
+// 			property = property->next;
+// 		}
+// 	}
 	
 	mxPop();
 	mxPop();
@@ -991,6 +1016,76 @@ void fx_harden(txMachine* the)
 		
 	mxPop();
 	mxPop();
+}
+
+void fx_petrify(txMachine* the)
+{
+	txSlot* slot;
+	txSlot* instance;
+	txBoolean useIndexes = 1;
+	txSlot* at;
+	txSlot* property;
+	if (mxArgc == 0)
+		return;
+	slot = mxArgv(0);	
+	*mxResult = *slot;
+	if (slot->kind != XS_REFERENCE_KIND)
+		return;
+	instance = slot->value.reference;
+	if (!mxBehaviorPreventExtensions(the, instance))
+		mxTypeError("extensible object");
+	slot = instance->next;	
+	if (slot && (slot->flag & XS_INTERNAL_FLAG)) {
+		 if ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND) || (slot->kind == XS_TYPED_ARRAY_KIND))
+		 	useIndexes = 0;
+	}
+		
+	at = fxNewInstance(the);
+	mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
+	mxPushUndefined();
+	property = the->stack;
+	while ((at = at->next)) {
+		if ((at->value.at.id != XS_NO_ID) || useIndexes) {
+			if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+				txFlag mask = XS_DONT_DELETE_FLAG;
+				property->flag |= XS_DONT_DELETE_FLAG;
+				if (property->kind != XS_ACCESSOR_KIND) {
+					mask |= XS_DONT_SET_FLAG;
+					property->flag |= XS_DONT_SET_FLAG;
+				}
+				property->kind = XS_UNINITIALIZED_KIND;
+				if (!mxBehaviorDefineOwnProperty(the, instance, at->value.at.id, at->value.at.index, property, mask))
+					mxTypeError("cannot configure property");
+			}
+		}
+	}
+	mxPop();
+	
+	property = instance->next;
+	while (property) {
+		if (property->flag & XS_INTERNAL_FLAG) {
+			switch (property->kind) {
+			case XS_ARRAY_BUFFER_KIND:
+			case XS_DATE_KIND:
+			case XS_MAP_KIND:
+			case XS_SET_KIND:
+			case XS_WEAK_MAP_KIND:
+			case XS_WEAK_SET_KIND:
+				property->flag |= XS_DONT_SET_FLAG;
+				break;				
+			case XS_PRIVATE_KIND:
+				slot = property->value.private.first;
+				while (slot) {
+					if (slot->kind != XS_ACCESSOR_KIND) 
+						slot->flag |= XS_DONT_SET_FLAG;
+					slot->flag |= XS_DONT_DELETE_FLAG;
+					slot = slot->next;
+				}
+				break;
+			}
+		}	
+		property = property->next;
+	}	
 }
 
 static void fxVerifyError(txMachine* the, txSlot* path, txID id, txIndex index, txString name);

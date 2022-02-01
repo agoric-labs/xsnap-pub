@@ -115,6 +115,7 @@ mxImport void fxVersion(xsStringValue theBuffer, xsUnsignedValue theSize);
 
 mxImport void fx_lockdown(xsMachine* the);
 mxImport void fx_harden(xsMachine* the);
+mxImport void fx_petrify(xsMachine* the);
 mxImport void fx_purify(xsMachine* the);
 
 #ifdef __cplusplus

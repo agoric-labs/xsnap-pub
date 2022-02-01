@@ -47,7 +47,7 @@ Returns a compartment object.
 
 The `endowments` parameter is an object that adds properties to the `globalThis` object of the compartment. 
 
-The `Compartment` constructor copies the `endowments` properties like `Object.assign`.
+The `Compartment` constructor copies the `endowments` properties using the same behavior as `Object.assign`.
 
 	let getterCount = 0;
 	let setterCount = 0;
@@ -111,9 +111,9 @@ The `moduleMap` parameter is an object that initializes the **module map** of th
 - property names are module specifiers,
 - property values are module namespaces, module records or module specifiers. 
 
-The `Compartment` constructor copies the `moduleMap` properties like `Object.assign`.
+The `Compartment` constructor copies the `moduleMap` properties using the same behavior as `Object.assign`.
 
-A compartment cannot acces module records or module specifiers provided by the module map. A compartment can only access module namespaces that will be loaded and initialized based on such module records or module specifiers.
+A compartment cannot access module records or module specifiers provided by the module map. A compartment can only access module namespaces that will be loaded and initialized based on such module records or module specifiers.
 
 #### module namespaces
 
