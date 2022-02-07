@@ -380,8 +380,8 @@ void fxConnect(txMachine* the)
 		}
 	}
 	else {
-		strcpy(name, "localhost");
-		port = 5002;
+		// Require XSBUG_HOST to be set for debugging.
+		return;
 	}
 	memset(&address, 0, sizeof(address));
   	address.sin_family = AF_INET;
