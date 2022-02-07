@@ -497,18 +497,17 @@ void fxReceive(txMachine* the)
 	if (the->connection != mxNoSocket) {
 #if mxWindows
 		count = recv(the->connection, the->debugBuffer, sizeof(the->debugBuffer) - 1, 0);
-		if (count < 0)
+		if (count <= 0)
 			fxDisconnect(the);
 		else
 			the->debugOffset = count;
 #else
 	again:
 		count = read(the->connection, the->debugBuffer, sizeof(the->debugBuffer) - 1);
-		if (count < 0) {
-			if (errno == EINTR)
-				goto again;
-			else
-				fxDisconnect(the);
+		if (count < 0 && errno == EINTR) {
+			goto again;
+		} else if (count <= 0) {
+			fxDisconnect(the);
 		}
 		else
 			the->debugOffset = count;
