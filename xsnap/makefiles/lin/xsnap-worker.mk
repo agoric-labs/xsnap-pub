@@ -29,8 +29,6 @@ C_OPTIONS = \
 	-DXSNAP_VERSION=\"$(XSNAP_VERSION)\" \
 	-DXSNAP_TEST_RECORD=0 \
 	-DmxMetering=1 \
-	-DmxDebug=1 \
-	-DmxBoundsCheck=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
 	-DmxSloppy=1 \
@@ -45,9 +43,9 @@ C_OPTIONS += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
 else
-	C_OPTIONS += -DmxNoConsole=1 -O3
+	C_OPTIONS += -DmxBoundsCheck=1 -DmxNoConsole=1 -O3
 endif
 
 LIBRARIES = -ldl -lm -lpthread
