@@ -1,10 +1,7 @@
 const c = new Compartment({}, {}, {
 	async loadHook(specifier) {
-		return new StaticModuleRecord({ source:`export default "${specifier}"` });
+		return { source:`export default import.meta.uri`, meta: { uri: specifier } };
 	},
-	resolveHook(specifier) {
-		return specifier;
-	}
 })
 const nsa = await c.import("a");
 print(nsa.default); // a

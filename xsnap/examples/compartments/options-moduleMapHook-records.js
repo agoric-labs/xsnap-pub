@@ -1,9 +1,9 @@
-const foo = new StaticModuleRecord({ source:`
+const foo = { source:`
 	let foo = 0;
 	export default function() {
 		return foo++;
 	}
-`});;
+`};
 
 function moduleMapHook(specifier) {
 	if ((specifier == "foo") || (specifier == "bar"))

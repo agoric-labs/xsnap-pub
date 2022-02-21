@@ -1,13 +1,8 @@
 const modules = {
-	a: new StaticModuleRecord({ source:`
-		export const foo = "foo";
-	`}),
+	a: { source:`export const foo = "foo";` },
 };
 const c1 = new Compartment({}, {},
 	{
-		resolveHook(specifier, refererSpecifier) {
-			return specifier;
-		},
 		async loadHook(specifier) {
 			return modules[specifier];
 		},
@@ -18,13 +13,13 @@ try {
 	print(nsa1.foo);
 }
 catch(e) {
-	print(e); // ReferenceError: print: module not initialized yet
+	print(e); // ReferenceError: ?: module not initialized yet
 }
 try {
 	print(nsa1.bar);
 }
 catch(e) {
-	print(e); // ReferenceError: print: module not initialized yet
+	print(e); // ReferenceError: ?: module not initialized yet
 }
 const nsa2 = await c1.import("a");
 print(nsa2.foo); // foo

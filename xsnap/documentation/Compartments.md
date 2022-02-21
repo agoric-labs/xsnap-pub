@@ -1,6 +1,6 @@
 # Compartments
 
-Revised: January 6, 2022
+Revised: February 5, 2022
 
 Warning: These notes are preliminary. Omissions and errors are likely. If you encounter problems, please ask for assistance.
 
@@ -36,6 +36,12 @@ A parent compartment can create child compartments.
 	`);
 
 A compartment can only provide to its child compartments the features provided by its parent compartment (and new features based on the features provided by its parent compartment).
+
+### Module Descriptor
+
+Comparments can load and initialize modules from module descriptors. Like property descriptors, module descriptors are ordinary objects with various forms. 
+
+Static module records are compiled module descriptors and can be used instead of module descriptors. See [StaticModuleRecord](./StaticModuleRecord.md) for details.
 
 ## The Compartment Constructor
 
@@ -109,11 +115,15 @@ The `Compartment` constructor copies the `endowments` properties using the same 
 The `moduleMap` parameter is an object that initializes the **module map** of the compartment:
 
 - property names are module specifiers,
-- property values are module namespaces, module records or module specifiers. 
+- property values are module namespaces, module descriptors or module specifiers. 
 
 The `Compartment` constructor copies the `moduleMap` properties using the same behavior as `Object.assign`.
 
+<<<<<<< Updated upstream
+A compartment cannot acces module descriptors or module specifiers provided by the module map. A compartment can only access module namespaces that will be loaded and initialized based on such module descriptors or module specifiers.
+=======
 A compartment cannot access module records or module specifiers provided by the module map. A compartment can only access module namespaces that will be loaded and initialized based on such module records or module specifiers.
+>>>>>>> Stashed changes
 
 #### module namespaces
 
@@ -150,16 +160,16 @@ When a module map property value is a module namespace, the module namespace is 
 	print(fooNS2.default()); // 2;
 	print(barNS2.default()); // 3;
 
-#### module records
+#### module descriptors
 
-When a module map property value is a module record, the module record is used to load and initialize a new module into the compartment.
+When a module map property value is a module descriptor, the module descriptor is used to load and initialize a new module into the compartment.
 
-	const foo = new StaticModuleRecord({ source:`
+	const foo = { source:`
 		let foo = 0;
 		export default function() {
 			return foo++;
 		}
-	`});;
+	`};
 	
 	let getterCount = 0;
 	let setterCount = 0;
@@ -296,7 +306,7 @@ If the property is writable, a variable (`let`) is created, else a constant (`co
 
 ### options.moduleMapHook(specifier)
 
-The `moduleMapHook` option is a function that takes a module specifier and returns a module namespace, a module record, a module specifier or `undefined`.
+The `moduleMapHook` option is a function that takes a module specifier and returns a module namespace, a module descriptor, a module specifier or `undefined`.
 
 The `moduleMapHook` function is only called directly or indirectly by `Compartment.prototype.import` or `Compartment.prototype.importNow` if the `moduleMap` has no property for the specifier.
 
@@ -326,16 +336,16 @@ When the `moduleMapHook` function returns a module namespace, the module namespa
 	print(fooNS2.default()); // 2;
 	print(barNS2.default()); // 3;
 
-#### module records
+#### module descriptors
 
-When the `moduleMapHook` function returns a module record, the module record is used to load and initialize a new module into the compartment.
+When the `moduleMapHook` function returns a module descriptor, the module descriptor is used to load and initialize a new module into the compartment.
 
-	const foo = new StaticModuleRecord({ source:`
+	const foo = { source:`
 		let foo = 0;
 		export default function() {
 			return foo++;
 		}
-	`});;
+	`};
 	
 	function moduleMapHook(specifier) {
 		if ((specifier == "foo") || (specifier == "bar"))
@@ -382,18 +392,15 @@ When the `moduleMapHook` function returns a module specifier, the module specifi
 
 ### options.loadHook(specifier)
 
-The `loadHook` option is an asynchronous function that takes a module specifier and returns a promise to a module record.
+The `loadHook` option is an asynchronous function that takes a module specifier and returns a promise to a module descriptor.
 
 The `loadHook` function is only called directly or indirectly by `Compartment.prototype.import` if the `moduleMap` has no property for the specifier and if the `moduleMapHook` returns `undefined` for the specifier.
 
-The `loadHook` function is useful if the module record is unavailable when constructing the compartment, or to create a module record dynamically. 
+The `loadHook` function is useful if the module descriptor is unavailable when constructing the compartment, or to create a module descriptor dynamically. 
 
 	const c = new Compartment({}, {}, {
 		async loadHook(specifier) {
-			return new StaticModuleRecord({ source:`export default "${specifier}"`});
-		},
-		resolveHook(specifier) {
-			return specifier;
+			return { source:`export default import.meta.uri`, meta: { uri: specifier } };
 		}
 	})
 	const nsa = await c.import("a");
@@ -405,18 +412,15 @@ The default `loadHook` function throws a `TypeError`.
 
 ### options.loadNowHook(specifier)
 
-The `loadNowHook` option is a function that takes a module specifier and returns a module record.
+The `loadNowHook` option is a function that takes a module specifier and returns a module descriptor.
 
 The `loadNowHook` function is only called directly or indirectly by `Compartment.prototype.importNow` if the `moduleMap` has no property for the specifier and if the `moduleMapHook` returns `undefined` for the specifier.
 
-The `loadNowHook ` function is useful if the module record is unavailable when constructing the compartment, or to create a module record dynamically. 
+The `loadNowHook ` function is useful if the module descriptor is unavailable when constructing the compartment, or to create a module descriptor dynamically. 
 
 	const c = new Compartment({}, {}, {
 		loadNowHook(specifier) {
-			return new StaticModuleRecord({ source:`export default "${specifier}"`});
-		},
-		resolveHook(specifier) {
-			return specifier;
+			return { source:`export default import.meta.uri`, meta: { uri: specifier } };
 		}
 	})
 	const nsa = c.importNow("a");
@@ -426,27 +430,27 @@ The `loadNowHook ` function is useful if the module record is unavailable when c
 
 The default `loadNowHook` function throws a `TypeError`.
 
-### options.resolveHook(specifier, referrerSpecifier)
+### options.resolveHook(importSpecifier, referrerSpecifier)
 
-The `resolveHook` option is a function that takes a module specifier and a referrer specifier and returns a module specifier.
+The `resolveHook` option is a function that takes an import specifier and a referrer specifier and returns a module specifier.
 
 Typically the `resolveHook` function combine a relative path and an absolute path or uri into an absolute path or uri. But the `resolveHook` function can build arbitrary specifiers.
 
 	const c = new Compartment({}, {
-		a$: new StaticModuleRecord({ source:`
+		a: { source:`
 			import b from "b";
 			export default "a" + b;
-		`}),
-		b_a$: new StaticModuleRecord({ source:`
+		`},
+		b_a: { source:`
 			import c from "c";
 			export default "b" + c;
-		`}),
-		c_b_a$: new StaticModuleRecord({ source:`
+		`},
+		c_b_a: { source:`
 			export default "c";
-		`}),
+		`},
 	}, {
-		resolveHook(specifier, referrer) {
-			return referrer ? specifier + "_" + referrer : specifier + "$";
+		resolveHook(importSpecifier, referrerSpecifier) {
+			return importSpecifier + "_" + referrerSpecifier;
 		}
 	})
 	const nsa = await c.import("a");
@@ -507,19 +511,19 @@ The specifier is used to find a module:
 If necessary, the compartment loads and initialize the module. The `import` declarations or calls are resolved by the compartment `resolveHook` then follow the same process.. Eventually the promise is fulfilled.
 
 	const c = new Compartment({}, {
-		"/a": new StaticModuleRecord({ source:`
+		"/a": { source:`
 			let a = 0;
 			export default function() {
 				return a++;
 			}
-		`}),
-		"/b": new StaticModuleRecord({ source:`
+		`},
+		"/b": { source:`
 			const nsa = await import("./a");
 			export default function() {
 				const a = nsa.default();
 				return a * a;
 			}
-		`}),
+		`},
 	});
 	const nsa = await c.import("/a");
 	const nsb = await c.import("/b");
@@ -555,10 +559,10 @@ Returns a module namespace without importing the module:
 The `module` method allows to share module namespaces across compartments without loading and initializing modules.
 
 	const c1 = new Compartment({}, {
-		a: new StaticModuleRecord({source:`
+		a: {source:`
 			let x = 0;
 			export default function() { return x++; };
-		`})
+		`}
 	});
 	const nsa1 = c1.module("a");
 	const c2 = new Compartment({}, {
@@ -584,15 +588,12 @@ The change affects `[[GetOwnProperty]]`, `[[DefineOwnProperty]]`,  `[[HasPropert
 But the change does not affect `[[GetPrototypeOf]]`, `[[SetPrototypeOf]]`, `[[IsExtensible]]`,  `[[PreventExtensions]]` and `[[Set]]` which do not depend on the state of the module.
 
 	const modules = {
-		a: new StaticModuleRecord({ source:`
+		a: { source:`
 			export const foo = "foo";
-		`}),
+		`},
 	};
 	const c1 = new Compartment({}, {},
 		{
-			resolveHook(specifier, refererSpecifier) {
-				return specifier;
-			},
 			async loadHook(specifier) {
 				return modules[specifier];
 			},

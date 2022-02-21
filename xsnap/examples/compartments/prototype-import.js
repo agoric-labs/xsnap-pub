@@ -1,17 +1,17 @@
 const c = new Compartment({}, {
-	"/a": new StaticModuleRecord({ source:`
+	"/a": { source:`
 		let a = 0;
 		export default function() {
 			return a++;
 		}
-	`}),
-	"/b": new StaticModuleRecord({ source:`
+	`},
+	"/b": { source:`
 		const nsa = await import("./a");
 		export default function() {
 			const a = nsa.default();
 			return a * a;
 		}
-	`}),
+	`},
 });
 const nsa = await c.import("/a");
 const nsb = await c.import("/b");

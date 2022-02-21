@@ -1,8 +1,8 @@
 const c1 = new Compartment({}, {
-	a: new StaticModuleRecord({source:`
+	a: {source:`
 		let x = 0;
 		export default function() { return x++; };
-	`})
+	`}
 });
 const nsa1 = c1.module("a");
 const c2 = new Compartment({}, {
