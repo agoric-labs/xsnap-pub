@@ -78,13 +78,13 @@
 	size_t allocatedSpace;
 
 #define mxUseDefaultBuildKeys 1
-#define mxUseDefaultFindModule 1
-#define mxUseDefaultLoadModule 1
 #define mxUseDefaultParseScript 1
 #define mxUseDefaultSharedChunks 1
 
 #if INTPTR_MAX == INT64_MAX
 	#define mx32bitID 1
 #endif
+
+#define mxCESU8 1
 
 #endif /* __XSNAP_PLATFORM__ */
