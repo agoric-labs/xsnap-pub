@@ -1,18 +1,42 @@
 # xsnap
-Revised: June 16, 2021
+Revised: January 4, 2022
 
 Warning: These notes are preliminary. Omissions and errors are likely. If you encounter problems, please ask for assistance.
 
 ## About
 
-`xsnap` is a custom XS runtime that read and write XS snapshots. See [XS snapshots](./documentation/XS Snapshots.md) for details and the C programming interface.
-
-`xsnap` can create a machine from scratch or from a snapshot. In both cases, the machine can be frozen prior to scripts or modules execution.
-
-When a machine is frozen, all intrinsics become immutable. Similarly to the [XS linker](https://github.com/Moddable-OpenSource/moddable/blob/public/documentation/xs/XS%20linker%20warnings.md), `xsnap` reports warning about mutable closures or objects.
-`xsnap` cannot write a snapshot if the machine has been frozen.
+`xsnap` is a custom XS runtime that read and write XS snapshots. See [XS snapshots](./documentation/XS Snapshots.md) for details and the C programming interface. `xsnap` can create a machine from scratch or from a snapshot.
 
 `xsnap` also uses the metering version of XS. There are options to constraint how much computation a machine can do. See [XS metering](./documentation/XS Metering.md)
+
+## Additions
+
+Besides ECMAScript built-ins and intrinsics, `xsnap` provides additional features.
+
+- `gc()`
+- `print(x)`
+
+### Immutability
+
+- `harden(it)`
+- `lockdown()`
+
+### Metering
+
+- `currentMeterLimit()`
+- `resetMeter(newMeterLimit, newMeterIndex)`
+
+### Web API
+
+- `TextDecoder`
+- `TextEncoder`
+- `clearImmediate(id)`
+- `clearInterval(id)`
+- `clearTimeout(id)`
+- `setImmediate(callback)`
+- `setInterval(callback, delay)`
+- `setTimeout(callback, delay)`
+- `performance.now()`
 
 ## Build
 
@@ -42,14 +66,14 @@ The release version is built in `$MODDABLE/build/bin/win/release `
 
 ## Usage
 
-	xsnap [-f] [-h] [-v]
-			[-r <snapshot>] [-w <snapshot>] 
+	xsnap [-h] [-v]
+			[-d <snapshot>] [-r <snapshot>] [-w <snapshot>] 
 			[-i <interval>] [-l <limit>] [-p]
 			[-e] [-m] [-s] strings...
 
-- `-f`: freeze the XS machine
 - `-h`: print this help message
 - `-v`: print XS version
+- `-d <snapshot>`: dump snapshot to stderr 
 - `-r <snapshot>`: read snapshot to create the XS machine 
 - `-w <snapshot>`: write snapshot of the XS machine at exit
 - `-i <interval>`: metering interval (defaults to 1) 
@@ -59,7 +83,7 @@ The release version is built in `$MODDABLE/build/bin/win/release `
 - `-m`: `strings` are paths to modules
 - `-s`: `strings` are paths to scripts
 
-Without `-e`, `-m`, `-s`, if the extension is `.mjs`, strings are paths to modules, else strings are paths to scripts. The `-f` and `-w` options are incompatible.
+Without `-e`, `-m`, `-s`, if the extension is `.mjs`, strings are paths to modules, else strings are paths to scripts.
 
 ## Examples
 
@@ -122,20 +146,6 @@ Use the `-m` option for modules
 	xsnap -r snapshot.xsm -m after.js
 
 Modules imported before writing the snapshot are available after reading the snapshot.
-
-### compartments
-
-Use the `-f` option to freeze the machine in order to use compartments. 
-
-	cd ./examples/compartments
-	xsnap before.js -w snapshot.xsm
-	xsnap -r snapshot.xsm -f after.js
-
-`xsnap` warns about mutable closures and objects.
-
-	### warning() l: no const
-	0 0 0 0
-	undefined undefined undefined 1
 
 ### metering
 

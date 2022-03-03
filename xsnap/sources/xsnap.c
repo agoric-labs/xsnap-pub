@@ -8,16 +8,17 @@ static void xsBuildAgent(xsMachine* the);
 static void xsPrintUsage();
 static void xsReplay(xsMachine* machine);
 
-static void xs_clearTimer(xsMachine* the);
+//static void xs_clearTimer(xsMachine* the);
 static void xs_currentMeterLimit(xsMachine* the);
 static void xs_gc(xsMachine* the);
 static void xs_issueCommand(xsMachine* the);
+static void xs_lockdown(xsMachine *the);
 static void xs_performance_now(xsMachine* the);
 static void xs_print(xsMachine* the);
 static void xs_resetMeter(xsMachine* the);
 static void xs_setImmediate(xsMachine* the);
-static void xs_setInterval(xsMachine* the);
-static void xs_setTimeout(xsMachine* the);
+//static void xs_setInterval(xsMachine* the);
+//static void xs_setTimeout(xsMachine* the);
 
 extern void xs_textdecoder(xsMachine *the);
 extern void xs_textdecoder_decode(xsMachine *the);
@@ -36,37 +37,33 @@ extern void xs_base64_encode(xsMachine *the);
 extern void xs_base64_decode(xsMachine *the);
 extern void modInstallBase64(xsMachine *the);
 
-#define mxSnapshotCallbackCount 23
+#define mxSnapshotCallbackCount 21
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand, // 0
 	xs_print, // 1
-	xs_gc, // 2
+	xs_setImmediate, // 2
+	xs_gc, // 3
+	xs_performance_now, // 4
+	xs_currentMeterLimit, // 5
+	xs_resetMeter, // 6
 
-	xs_clearTimer, // 3
-	xs_setImmediate, // 4
-	xs_setInterval, // 5
-	xs_setTimeout, // 6
+	xs_textdecoder, // 7
+	xs_textdecoder_decode, // 8
+	xs_textdecoder_get_encoding, // 9
+	xs_textdecoder_get_ignoreBOM, // 10
+	xs_textdecoder_get_fatal, // 11
 
-	xs_performance_now, // 7
-	xs_currentMeterLimit, // 8
-	xs_resetMeter, // 9
+	xs_textencoder, // 12
+	xs_textencoder_encode, // 13
+	xs_textencoder_encodeInto, // 14
 
-	xs_textdecoder, // 10
-	xs_textdecoder_decode, // 11
-	xs_textdecoder_get_encoding, // 12
-	xs_textdecoder_get_ignoreBOM, // 13
-	xs_textdecoder_get_fatal, // 14
-
-	xs_textencoder, // 15
-	xs_textencoder_encode, // 16
-	xs_textencoder_encodeInto, // 17
-
-	xs_base64_encode, // 18
-	xs_base64_decode, // 19
-
-	fx_lockdown, // 20
-	fx_harden, // 21
-	fx_purify, // 22
+	xs_base64_encode, // 15
+	xs_base64_decode, // 16
+	
+	fx_harden, // 17
+	xs_lockdown, // 18
+	fx_petrify, // 19
+	fx_mutabilities, // 20
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
@@ -310,20 +307,20 @@ void xsBuildAgent(xsMachine* machine)
 	xsBeginHost(machine);
 	xsVars(1);
 	
-	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+// 	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_setImmediate, 1);
 	xsDefine(xsGlobal, xsID("setImmediate"), xsResult, xsDontEnum);
 	
-	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(xs_setInterval, 1);
-	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
-	
-	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(xs_setTimeout, 1);
-	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+// 	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_setInterval, 1);
+// 	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
+
+// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+// 	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_setTimeout, 1);
+// 	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
 	
 	xsResult = xsNewHostFunction(xs_gc, 1);
 	xsDefine(xsGlobal, xsID("gc"), xsResult, xsDontEnum);
@@ -346,13 +343,15 @@ void xsBuildAgent(xsMachine* machine)
 	modInstallTextDecoder(the);
 	modInstallTextEncoder(the);
 	modInstallBase64(the);
-
+	
 	xsResult = xsNewHostFunction(fx_harden, 1);
 	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(fx_lockdown, 0);
+	xsResult = xsNewHostFunction(xs_lockdown, 0);
 	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(fx_purify, 1);
-	xsDefine(xsGlobal, xsID("purify"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_petrify, 1);
+	xsDefine(xsGlobal, xsID("petrify"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_mutabilities, 1);
+	xsDefine(xsGlobal, xsID("mutabilities"), xsResult, xsDontEnum);
 
 	xsEndHost(machine);
 }
@@ -360,6 +359,7 @@ void xsBuildAgent(xsMachine* machine)
 void xsPrintUsage()
 {
 	printf("xsnap [-h] [-e] [i <interval] [l <limit] [-m] [-r <snapshot>] [-s] [-v] [-w <snapshot>] strings...\n");
+	printf("\t-d <snapshot>: dump snapshot to stderr\n");
 	printf("\t-e: eval strings\n");
 	printf("\t-h: print this help message\n");
 	printf("\t-i <interval>: metering interval (default to 1)\n");
@@ -409,14 +409,14 @@ void xsReplay(xsMachine* machine)
 							string[length] = 0;
 							fclose(file);
 							xsCall1(xsGlobal, xsID("eval"), xsResult);
-
+							
 						}
 						else if (which == 1) {
 							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
 							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
 							fclose(file);
 							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
-
+							
 						}
 					}
 					break;
@@ -429,6 +429,11 @@ void xsReplay(xsMachine* machine)
 		gxStep++;
 		fxRunLoop(machine);
 	}
+}
+
+void xs_clearTimer(xsMachine* the)
+{
+	xsClearTimer();
 }
 
 void xs_currentMeterLimit(xsMachine* the)
@@ -460,8 +465,53 @@ void xs_issueCommand(xsMachine* the)
 	length = ftell(file);
 	fseek(file, 0, SEEK_SET);
 	xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-	length = fread(xsToArrayBuffer(xsResult), 1, length, file);
+	length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
 	fclose(file);
+}
+
+void xs_lockdown(xsMachine *the)
+{
+	fx_lockdown(the);
+	
+	xsResult = xsGet(xsGlobal, xsID("Base64"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("TextDecoder"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("TextEncoder"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	
+// 	xsResult = xsGet(xsGlobal, xsID("clearImmediate"));
+// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
+// 	xsResult = xsGet(xsGlobal, xsID("clearInterval"));
+// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
+// 	xsResult = xsGet(xsGlobal, xsID("clearTimeout"));
+// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("currentMeterLimit"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("gc"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("harden"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("issueCommand"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("lockdown"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("mutabilities"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("performance"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("petrify"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("print"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("resetMeter"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+	xsResult = xsGet(xsGlobal, xsID("setImmediate"));
+	xsCall1(xsGlobal, xsID("harden"), xsResult);
+// 	xsResult = xsGet(xsGlobal, xsID("setInterval"));
+// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
+// 	xsResult = xsGet(xsGlobal, xsID("setTimeout"));
+// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
 }
 
 void xs_performance_now(xsMachine *the)
@@ -474,8 +524,11 @@ void xs_performance_now(xsMachine *the)
 void xs_print(xsMachine* the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc), i;
+	xsStringValue string, p, q;
+	xsVars(1);
+	xsVar(0) = xsGet(xsGlobal, xsID("String"));
 	for (i = 0; i < c; i++) {
-		xsToString(xsArg(i));
+		xsArg(i) = xsCallFunction1(xsVar(0), xsUndefined, xsArg(i));
 	}
 #ifdef mxMetering
 	if (gxMeteringPrint)
@@ -484,7 +537,52 @@ void xs_print(xsMachine* the)
 	for (i = 0; i < c; i++) {
 		if (i)
 			fprintf(stdout, " ");
-		fprintf(stdout, "%s", xsToString(xsArg(i)));
+		xsArg(i) = xsCallFunction1(xsVar(0), xsUndefined, xsArg(i));
+		p = string = xsToString(xsArg(i));
+	#if mxCESU8
+		for (;;) {
+			xsIntegerValue character;
+			q = fxUTF8Decode(p, &character);
+		again:
+			if (character == C_EOF)
+				break;
+			if (character == 0) {
+				if (p > string) {
+					char c = *p;
+					*p = 0;
+					fprintf(stdout, "%s", string);
+					*p = c;
+				}
+				string = q;
+			}
+			else if ((0x0000D800 <= character) && (character <= 0x0000DBFF)) {
+				xsStringValue r = q;
+				xsIntegerValue surrogate;
+				q = fxUTF8Decode(r, &surrogate);
+				if ((0x0000DC00 <= surrogate) && (surrogate <= 0x0000DFFF)) {
+					char buffer[5];
+					character = (xsIntegerValue)(0x00010000 + ((character & 0x03FF) << 10) + (surrogate & 0x03FF));
+					if (p > string) {
+						char c = *p;
+						*p = 0;
+						fprintf(stdout, "%s", string);
+						*p = c;
+					}
+					p = fxUTF8Encode(buffer, character);
+					*p = 0;
+					fprintf(stdout, "%s", buffer);
+					string = q;
+				}
+				else {
+					p = r;
+					character = surrogate;
+					goto again;
+				}
+			}
+			p = q;
+		}
+	#endif	
+		fprintf(stdout, "%s", string);
 	}
 	fprintf(stdout, "\n");
 }
@@ -516,12 +614,6 @@ void xs_setTimeout(xsMachine* the)
 {
 	xsSetTimer(xsToNumber(xsArg(1)), 0);
 }
-
-void xs_clearTimer(xsMachine* the)
-{
-	xsClearTimer();
-}
-
 
 
 
