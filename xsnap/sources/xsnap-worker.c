@@ -89,7 +89,7 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 
 	fx_lockdown, // 17
 	fx_harden, // 18
-	fx_purify, // 19
+	fx_petrify, // 19
 
 	// fx_setInterval,
 	// fx_setTimeout,

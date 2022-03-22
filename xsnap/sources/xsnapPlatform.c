@@ -6,7 +6,6 @@
 	#define mxReserveChunkSize 1024 * 1024 * 1024
 #endif
 
-extern txScript* fxLoadScript(txMachine* the, txString path, txUnsigned flags);
 
 mxExport void fxRunModuleFile(txMachine* the, txString path);
 mxExport void fxRunProgramFile(txMachine* the, txString path);
@@ -33,9 +32,6 @@ struct sxJob {
 	txNumber interval;
 };
 
-static void fxFulfillModuleFile(txMachine* the);
-static void fxRejectModuleFile(txMachine* the);
-
 static void fxDestroyTimer(void* data);
 static void fxMarkTimer(txMachine* the, void* it, txMarkRoot markRoot);
 
@@ -46,12 +42,17 @@ static txHostHooks gxTimerHooks = {
 
 void fxClearTimer(txMachine* the)
 {
-	txJob* job = fxGetHostData(the, mxArgv(0));
-	if (job) {
-        fxForget(the, &job->self);
-        fxSetHostData(the, mxArgv(0), NULL);
-		job->the = NULL;
+	txHostHooks* hooks = fxGetHostHooks(the, mxArgv(0));
+	if (hooks == &gxTimerHooks) {
+		txJob* job = fxGetHostData(the, mxArgv(0));
+		if (job) {
+			fxForget(the, &job->self);
+			fxSetHostData(the, mxArgv(0), NULL);
+			job->the = NULL;
+		}
 	}
+	else
+		mxTypeError("no timer");
 }
 
 void fxDestroyTimer(void* data)
@@ -96,6 +97,10 @@ void fxSetTimer(txMachine* the, txNumber interval, txBoolean repeat)
 }
 
 /* PLATFORM */
+
+static void fxFulfillModuleFile(txMachine* the);
+static void fxRejectModuleFile(txMachine* the);
+static txScript* fxLoadScript(txMachine* the, txString path, txUnsigned flags);
 
 void fxAbort(txMachine* the, int status)
 {
@@ -305,6 +310,11 @@ void fxRunLoop(txMachine* the)
 						}
 					}
 					mxCatch(the) {
+                        fxAccess(the, &job->self);
+                        *mxResult = the->scratch;
+                        fxForget(the, &job->self);
+                        fxSetHostData(the, mxResult, NULL);
+                        job->the = NULL;
 						fxAbort(the, XS_UNHANDLED_EXCEPTION_EXIT);
 					}
 					fxEndHost(the);
@@ -351,6 +361,116 @@ void fxRunProgramFile(txMachine* the, txString path)
 	mxModuleInstanceInternal(mxProgram.value.reference)->value.module.id = fxID(the, path);
 	fxRunScript(the, script, mxRealmGlobal(realm), C_NULL, mxRealmClosures(realm)->value.reference, C_NULL, mxProgram.value.reference);
 	mxPullSlot(mxResult);
+}
+
+txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
+{
+	char name[C_PATH_MAX];
+	char path[C_PATH_MAX];
+	txInteger dot = 0;
+	txString slash;
+	fxToStringBuffer(the, slot, name, sizeof(name));
+	if (name[0] == '.') {
+		if (name[1] == '/') {
+			dot = 1;
+		}
+		else if ((name[1] == '.') && (name[2] == '/')) {
+			dot = 2;
+		}
+	}
+	if (dot) {
+		if (moduleID == XS_NO_ID)
+			return XS_NO_ID;
+		c_strcpy(path, fxGetKeyName(the, moduleID));
+		slash = c_strrchr(path, mxSeparator);
+		if (!slash)
+			return XS_NO_ID;
+		if (dot == 2) {
+			*slash = 0;
+			slash = c_strrchr(path, mxSeparator);
+			if (!slash)
+				return XS_NO_ID;
+		}
+#if mxWindows
+		{
+			char c;
+			char* s = name;
+			while ((c = *s)) {
+				if (c == '/')
+					*s = '\\';
+				s++;
+			}
+		}
+#endif
+	}
+	else
+		slash = path;
+	*slash = 0;
+	c_strcat(path, name + dot);
+	return fxNewNameC(the, path);
+}
+
+void fxLoadModule(txMachine* the, txSlot* module, txID moduleID)
+{
+	char path[C_PATH_MAX];
+	char real[C_PATH_MAX];
+	txScript* script;
+#ifdef mxDebug
+	txUnsigned flags = mxDebugFlag;
+#else
+	txUnsigned flags = 0;
+#endif
+	c_strcpy(path, fxGetKeyName(the, moduleID));
+	if (c_realpath(path, real)) {
+		script = fxLoadScript(the, real, flags);
+		if (script)
+			fxResolveModule(the, module, moduleID, script, C_NULL, C_NULL);
+	}
+}
+
+txScript* fxLoadScript(txMachine* the, txString path, txUnsigned flags)
+{
+	txParser _parser;
+	txParser* parser = &_parser;
+	txParserJump jump;
+	FILE* file = NULL;
+	txString name = NULL;
+	char map[C_PATH_MAX];
+	txScript* script = NULL;
+	fxInitializeParser(parser, the, the->parserBufferSize, the->parserTableModulo);
+	parser->firstJump = &jump;
+	file = fopen(path, "r");
+	if (c_setjmp(jump.jmp_buf) == 0) {
+		mxParserThrowElse(file);
+		parser->path = fxNewParserSymbol(parser, path);
+		fxParserTree(parser, file, (txGetter)fgetc, flags, &name);
+		fclose(file);
+		file = NULL;
+		if (name) {
+			mxParserThrowElse(c_realpath(fxCombinePath(parser, path, name), map));
+			parser->path = fxNewParserSymbol(parser, map);
+			file = fopen(map, "r");
+			mxParserThrowElse(file);
+			fxParserSourceMap(parser, file, (txGetter)fgetc, flags, &name);
+			fclose(file);
+			file = NULL;
+			if ((parser->errorCount == 0) && name) {
+				mxParserThrowElse(c_realpath(fxCombinePath(parser, map, name), map));
+				parser->path = fxNewParserSymbol(parser, map);
+			}
+		}
+		fxParserHoist(parser);
+		fxParserBind(parser);
+		script = fxParserCode(parser);
+	}
+	if (file)
+		fclose(file);
+#ifdef mxInstrument
+	if (the->peakParserSize < parser->total)
+		the->peakParserSize = parser->total;
+#endif
+	fxTerminateParser(parser);
+	return script;
 }
 
 /* DEBUG */
@@ -713,43 +833,68 @@ static void fx_hardenQueue(txMachine* the, txSlot* list, txSlot* instance, txFla
 static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot* freeze, txSlot* list, txFlag flag)
 {
 	txSlot* instance = reference->value.reference;
-	txSlot* at;
 	txSlot* property;
-	txSlot* slot;
-	
-	mxPush(mxObjectConstructor);
-	mxPushSlot(freeze);
-	mxCall();
-	mxPushSlot(reference);
-	mxRunCount(1);
-	mxPop();
-	if (flag == XS_DONT_MODIFY_FLAG) {
-		property = instance->next;
-		while (property) {
-			if (property->flag & XS_INTERNAL_FLAG) {
-				switch (property->kind) {
-				case XS_ARRAY_BUFFER_KIND:
-				case XS_DATE_KIND:
-				case XS_MAP_KIND:
-				case XS_SET_KIND:
-				case XS_WEAK_MAP_KIND:
-				case XS_WEAK_SET_KIND:
+	txBoolean useIndexes = 1;
+	txSlot* at;
+// 	txSlot* slot;
+
+	if (!mxBehaviorPreventExtensions(the, instance))
+		mxTypeError("extensible object");
+		
+	property = instance->next;	
+	if (property && (property->flag & XS_INTERNAL_FLAG) && (property->kind == XS_TYPED_ARRAY_KIND)) {
+		 useIndexes = 0;
+	}
+
+	at = fxNewInstance(the);
+	mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
+	mxPushUndefined();
+	property = the->stack;
+	while ((at = at->next)) {
+		if ((at->value.at.id != XS_NO_ID) || useIndexes) {
+			if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+				txFlag mask = XS_DONT_DELETE_FLAG;
+				property->flag |= XS_DONT_DELETE_FLAG;
+				if (property->kind != XS_ACCESSOR_KIND) {
+					mask |= XS_DONT_SET_FLAG;
 					property->flag |= XS_DONT_SET_FLAG;
-					break;				
-				case XS_PRIVATE_KIND:
-					slot = property->value.private.first;
-					while (slot) {
-						if (slot->kind != XS_ACCESSOR_KIND) 
-							slot->flag |= XS_DONT_SET_FLAG;
-						slot->flag |= XS_DONT_DELETE_FLAG;
-						slot = slot->next;
-					}
-					break;
 				}
-			}	
-			property = property->next;
-		}	
-	}	
+				property->kind = XS_UNINITIALIZED_KIND;
+				if (!mxBehaviorDefineOwnProperty(the, instance, at->value.at.id, at->value.at.index, property, mask))
+					mxTypeError("cannot configure property");
+			}
+		}
+	}
+	mxPop();
+	mxPop();
+	
+// 	if (flag == XS_DONT_MODIFY_FLAG) {
+// 		property = instance->next;
+// 		while (property) {
+// 			if (property->flag & XS_INTERNAL_FLAG) {
+// 				switch (property->kind) {
+// 				case XS_ARRAY_BUFFER_KIND:
+// 				case XS_DATE_KIND:
+// 				case XS_MAP_KIND:
+// 				case XS_SET_KIND:
+// 				case XS_WEAK_MAP_KIND:
+// 				case XS_WEAK_SET_KIND:
+// 					property->flag |= XS_DONT_SET_FLAG;
+// 					break;				
+// 				case XS_PRIVATE_KIND:
+// 					slot = property->value.private.first;
+// 					while (slot) {
+// 						if (slot->kind != XS_ACCESSOR_KIND) 
+// 							slot->flag |= XS_DONT_SET_FLAG;
+// 						slot->flag |= XS_DONT_DELETE_FLAG;
+// 						slot = slot->next;
+// 					}
+// 					break;
+// 				}
+// 			}	
+// 			property = property->next;
+// 		}	
+// 	}
 	instance->flag |= flag;
 
 	at = fxNewInstance(the);
@@ -773,32 +918,32 @@ static void fx_hardenFreezeAndTraverse(txMachine* the, txSlot* reference, txSlot
 		}
 	}
 	
-	if (flag == XS_DONT_MODIFY_FLAG) {
-		property = instance->next;
-		while (property) {
-			if (property->flag & XS_INTERNAL_FLAG) {
-				if (property->kind == XS_PRIVATE_KIND) {
-					txSlot* item = property->value.private.first;
-					while (item) {
-						if (property->kind == XS_REFERENCE_KIND)
-							fx_hardenQueue(the, list, property->value.reference, flag);
-						else if (property->kind == XS_ACCESSOR_KIND) {
-							if (property->value.accessor.getter)
-								fx_hardenQueue(the, list, property->value.accessor.getter, flag);
-							if (property->value.accessor.setter)
-								fx_hardenQueue(the, list, property->value.accessor.setter, flag);
-						}
-						item = item->next;
-					}
-				}
-				else if (property->kind == XS_DATA_VIEW_KIND) {
-					property = property->next;
-					fx_hardenQueue(the, list, property->value.reference, flag);
-				}
-			}
-			property = property->next;
-		}
-	}
+// 	if (flag == XS_DONT_MODIFY_FLAG) {
+// 		property = instance->next;
+// 		while (property) {
+// 			if (property->flag & XS_INTERNAL_FLAG) {
+// 				if (property->kind == XS_PRIVATE_KIND) {
+// 					txSlot* item = property->value.private.first;
+// 					while (item) {
+// 						if (property->kind == XS_REFERENCE_KIND)
+// 							fx_hardenQueue(the, list, property->value.reference, flag);
+// 						else if (property->kind == XS_ACCESSOR_KIND) {
+// 							if (property->value.accessor.getter)
+// 								fx_hardenQueue(the, list, property->value.accessor.getter, flag);
+// 							if (property->value.accessor.setter)
+// 								fx_hardenQueue(the, list, property->value.accessor.setter, flag);
+// 						}
+// 						item = item->next;
+// 					}
+// 				}
+// 				else if (property->kind == XS_DATA_VIEW_KIND) {
+// 					property = property->next;
+// 					fx_hardenQueue(the, list, property->value.reference, flag);
+// 				}
+// 			}
+// 			property = property->next;
+// 		}
+// 	}
 	
 	mxPop();
 	mxPop();
@@ -873,19 +1018,108 @@ void fx_harden(txMachine* the)
 	mxPop();
 }
 
+void fx_petrify(txMachine* the)
+{
+	txSlot* slot;
+	txSlot* instance;
+	txBoolean useIndexes = 1;
+	txSlot* at;
+	txSlot* property;
+	if (mxArgc == 0)
+		return;
+	slot = mxArgv(0);	
+	*mxResult = *slot;
+	if (slot->kind != XS_REFERENCE_KIND)
+		return;
+	instance = slot->value.reference;
+	if (!mxBehaviorPreventExtensions(the, instance))
+		mxTypeError("extensible object");
+	slot = instance->next;	
+	if (slot && (slot->flag & XS_INTERNAL_FLAG)) {
+		 if ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND) || (slot->kind == XS_TYPED_ARRAY_KIND))
+		 	useIndexes = 0;
+	}
+		
+	at = fxNewInstance(the);
+	mxBehaviorOwnKeys(the, instance, XS_EACH_NAME_FLAG | XS_EACH_SYMBOL_FLAG, at);
+	mxPushUndefined();
+	property = the->stack;
+	while ((at = at->next)) {
+		if ((at->value.at.id != XS_NO_ID) || useIndexes) {
+			if (mxBehaviorGetOwnProperty(the, instance, at->value.at.id, at->value.at.index, property)) {
+				txFlag mask = XS_DONT_DELETE_FLAG;
+				property->flag |= XS_DONT_DELETE_FLAG;
+				if (property->kind != XS_ACCESSOR_KIND) {
+					mask |= XS_DONT_SET_FLAG;
+					property->flag |= XS_DONT_SET_FLAG;
+				}
+				property->kind = XS_UNINITIALIZED_KIND;
+				if (!mxBehaviorDefineOwnProperty(the, instance, at->value.at.id, at->value.at.index, property, mask))
+					mxTypeError("cannot configure property");
+			}
+		}
+	}
+	mxPop();
+	
+	property = instance->next;
+	while (property) {
+		if (property->flag & XS_INTERNAL_FLAG) {
+			switch (property->kind) {
+			case XS_ARRAY_BUFFER_KIND:
+			case XS_DATE_KIND:
+			case XS_MAP_KIND:
+			case XS_SET_KIND:
+			case XS_WEAK_MAP_KIND:
+			case XS_WEAK_SET_KIND:
+				property->flag |= XS_DONT_SET_FLAG;
+				break;				
+			case XS_PRIVATE_KIND:
+				slot = property->value.private.first;
+				while (slot) {
+					if (slot->kind != XS_ACCESSOR_KIND) 
+						slot->flag |= XS_DONT_SET_FLAG;
+					slot->flag |= XS_DONT_DELETE_FLAG;
+					slot = slot->next;
+				}
+				break;
+			}
+		}	
+		property = property->next;
+	}	
+}
+
+static void fxVerifyCode(txMachine* the, txSlot* list, txSlot* path, txByte* codeBuffer, txSize codeSize);
 static void fxVerifyError(txMachine* the, txSlot* path, txID id, txIndex index, txString name);
-static void fxVerifyErrorString(txMachine* the, txID id, txIndex index, txString name);
+static void fxVerifyErrorString(txMachine* the, txSlot* slot, txID id, txIndex index, txString name);
 static void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instance);
 static void fxVerifyProperty(txMachine* the, txSlot *list, txSlot *path, txSlot* property, txID id, txIndex index, txString name);
 static void fxVerifyQueue(txMachine* the, txSlot* list, txSlot* path, txSlot* instance, txID id, txIndex index, txString name);
 
-void fx_purify(txMachine* the)
+void fx_mutabilities(txMachine* the)
 {
+	txSlot* instance;
+	txSlot* module;
+	txSlot* realm;
 	txSlot* slot;
 	txSlot* list;
 	txSlot* item;
 	
-	fxString(the, mxResult, "");
+	fxVars(the, 2);
+	
+	mxPush(mxArrayPrototype);
+	instance = fxNewArrayInstance(the);
+	mxPullSlot(mxResult);
+
+	fxNewHostObject(the, NULL);
+	fxSetHostChunk(the, the->stack, NULL, the->keyIndex);
+	mxPullSlot(mxVarv(0));
+	
+	module = mxFunctionInstanceHome(mxFunction->value.reference)->value.home.module;
+	if (!module) module = mxProgram.value.reference;
+	realm = mxModuleInstanceInternal(module)->value.module.realm;
+	mxPushSlot(mxRealmGlobal(realm));
+	mxPullSlot(mxVarv(1));
+
 	if (mxArgc == 0)
 		return;
 	slot = mxArgv(0);	
@@ -925,35 +1159,132 @@ void fx_purify(txMachine* the)
 			fxJump(the);
 		}
 	}
-		
-	mxPop();
+	
+	mxPop(); // list
+	
+	fxCacheArray(the, instance);
+	mxPushSlot(mxResult);
+	mxPushSlot(mxResult);
+	mxGetID(mxID(_sort));
+	mxCall();
+	mxRunCount(0);
+	mxPullSlot(mxResult);
+}
+
+void fxVerifyCode(txMachine* the, txSlot* list, txSlot* path, txByte* codeBuffer, txSize codeSize)
+{
+	const txS1* bytes = gxCodeSizes;
+	txByte* p = codeBuffer;
+	txByte* q = p + codeSize;
+	txU1 byte;
+	txS1 offset;
+	txID id;
+	txInteger count = 0;
+	txByte flag = 0;
+	txByte* flags = fxGetHostChunk(the, mxVarv(0));
+	while (p < q) {
+// 		fprintf(stderr, "%s", gxCodeNames[*((txU1*)p)]);
+		byte = (txU1)c_read8(p);
+		offset = (txS1)c_read8(bytes + byte);
+		if (0 < offset) {
+			p += offset;
+		}
+		else if (0 == offset) {
+			p++;
+			mxDecodeID(p, id);
+			if (byte == XS_CODE_PROGRAM_REFERENCE) {
+				flag = 1;
+				flags[id] = 1;
+			}
+		}
+		else if (-1 == offset) {
+			txU1 index;
+			p++;
+			index = *((txU1*)p);
+			p += 1 + index;
+		}
+        else if (-2 == offset) {
+			txU2 index;
+            p++;
+            mxDecode2(p, index);
+            p += index;
+        }
+        else if (-4 == offset) {
+			txS4 index;
+            p++;
+            mxDecode4(p, index);
+            p += index;
+        }
+// 		fprintf(stderr, "\n");
+		if ((XS_CODE_BEGIN_SLOPPY <= byte) && (byte <= XS_CODE_BEGIN_STRICT_FIELD)) {
+			count++;
+		}
+		else if ((XS_CODE_END <= byte) && (byte <= XS_CODE_END_DERIVED)) {
+			count--;
+			if (count == 0)
+				break;
+		}
+	}
+	if (flag) {
+		txSlot* instance = fxGetInstance(the, mxVarv(1));
+		txSlot* name = fxNewSlot(the);
+		name->value.string = "GlobalEnvironment";
+		name->kind = XS_STRING_X_KIND;
+		name->next = path;
+		id = 0;
+		p = flags;
+		q = flags + the->keyIndex;
+		while (p < q) {
+			if (*p) {
+				txSlot* property = mxBehaviorGetProperty(the, instance, id, 0, XS_OWN);
+				if (property)
+					fxVerifyProperty(the, list, name, property, id, 0, NULL);
+				*p = 0;
+			}
+			id++;
+			p++;
+		}
+	}
 }
 
 void fxVerifyError(txMachine* the, txSlot* path, txID id, txIndex index, txString string)
 {
-	if (mxResult->value.string[0])
-		fxConcatStringC(the, mxResult, "\n");
-	txSlot* current = path;
-	txSlot* next = C_NULL;
-	txSlot* previous = C_NULL;
+	txSlot* array;
+	txSlot* slot;
+	txSlot* current;
+	txSlot* next;
+	txSlot* previous;
+	
+	array = mxResult->value.reference->next;
+	slot = fxNewSlot(the);
+	slot->next = array->next;
+	array->next = slot;
+	array->value.array.length++;
+	fxString(the, slot, "");
+	
+	current = path;
+	next = C_NULL;
+	previous = C_NULL;
 	while (current) {
 		next = current->next;
 		current->next = previous;
 		previous = current;
 		current = next;
 	}
+	
 	path = previous;
 	current = path;
 	while (current) {
 		if (current->kind == XS_STRING_X_KIND) {
-			fxVerifyErrorString(the, XS_NO_ID, 0, current->value.string);
+			fxVerifyErrorString(the, slot, XS_NO_ID, 0, current->value.string);
 		}
 		else {
-			fxVerifyErrorString(the, current->value.at.id, current->value.at.index, C_NULL);
+			fxVerifyErrorString(the, slot, current->value.at.id, current->value.at.index, C_NULL);
 		}
 		current = current->next;
 	}
-	fxVerifyErrorString(the, id, index, string);
+	fxVerifyErrorString(the, slot, id, index, string);
+	
 	current = path;
 	next = C_NULL;
 	previous = C_NULL;
@@ -965,20 +1296,20 @@ void fxVerifyError(txMachine* the, txSlot* path, txID id, txIndex index, txStrin
 	}
 }
 
-void fxVerifyErrorString(txMachine* the, txID id, txIndex index, txString string)
+void fxVerifyErrorString(txMachine* the, txSlot* slot, txID id, txIndex index, txString string)
 {
 	if (string) {
-		fxConcatStringC(the, mxResult, "[[");
-		fxConcatStringC(the, mxResult, string);
-		fxConcatStringC(the, mxResult, "]]");
+		fxConcatStringC(the, slot, "[[");
+		fxConcatStringC(the, slot, string);
+		fxConcatStringC(the, slot, "]]");
 	}
 	else if (id != XS_NO_ID) {
 		txSlot* key = fxGetKey(the, id);
 		if (key) {
 			if (key->flag & XS_DONT_ENUM_FLAG) {
 				c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "%s", key->value.key.string);
-				fxConcatStringC(the, mxResult, ".");
-				fxConcatStringC(the, mxResult, the->nameBuffer);
+				fxConcatStringC(the, slot, ".");
+				fxConcatStringC(the, slot, the->nameBuffer);
 			}
 			else {
 				if ((key->kind == XS_KEY_KIND) || (key->kind == XS_KEY_X_KIND))
@@ -986,21 +1317,21 @@ void fxVerifyErrorString(txMachine* the, txID id, txIndex index, txString string
 				else if ((key->kind == XS_STRING_KIND) || (key->kind == XS_STRING_X_KIND))
 					c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "%s", key->value.string);
 				else
-					c_snprintf(the->nameBuffer, sizeof(the->nameBuffer), "");
-				fxConcatStringC(the, mxResult, "[Symbol(");
-				fxConcatStringC(the, mxResult, the->nameBuffer);
-				fxConcatStringC(the, mxResult, ")]");
+					the->nameBuffer[0] = 0;
+				fxConcatStringC(the, slot, "[Symbol(");
+				fxConcatStringC(the, slot, the->nameBuffer);
+				fxConcatStringC(the, slot, ")]");
 			}
 		}
 		else {
-			fxConcatStringC(the, mxResult, "[Symbol()]");
+			fxConcatStringC(the, slot, "[Symbol()]");
 		}
 	}
 	else {
 		fxNumberToString(the->dtoa, index, the->nameBuffer, sizeof(the->nameBuffer), 0, 0);
-		fxConcatStringC(the, mxResult, "[");
-		fxConcatStringC(the, mxResult, the->nameBuffer);
-		fxConcatStringC(the, mxResult, "]");
+		fxConcatStringC(the, slot, "[");
+		fxConcatStringC(the, slot, the->nameBuffer);
+		fxConcatStringC(the, slot, "]");
 	}
 }
 
@@ -1012,9 +1343,9 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 	instance->flag |= XS_LEVEL_FLAG;
 	
 	if (instance->next && (instance->next->ID == XS_ENVIRONMENT_BEHAVIOR)) {
-		txSlot* property = instance->next->next;
+		property = instance->next->next;
 		while (property) {
-			if (property->ID != XS_NO_ID) { // skip private fields initializers
+			if ((property->kind == XS_CLOSURE_KIND) && (property->ID != XS_NO_ID)) { // skip private fields initializers
 				txSlot* closure = property->value.closure;
 				if (!(closure->flag & XS_DONT_SET_FLAG)) {
 					fxVerifyError(the, path, property->ID, 0, C_NULL);
@@ -1045,11 +1376,11 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				{
 					txSlot* address = property->value.array.address;
 					if (address) {
-						txIndex size = (((txChunk*)(((txByte*)address) - sizeof(txChunk)))->size) / sizeof(txSlot);
-						txSlot* limit = address + size;
-						while (address < limit) {
+						txIndex offset = 0, size = (((txChunk*)(((txByte*)address) - sizeof(txChunk)))->size) / sizeof(txSlot);
+						while (offset < size) {
+							address = property->value.array.address + offset;
 							fxVerifyProperty(the, list, path, address, XS_NO_ID, *((txIndex*)address), C_NULL);
-							address++;
+							offset++;
 						}
 					}
 				} 
@@ -1062,9 +1393,9 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 				break;
 			case XS_CODE_KIND:
 			case XS_CODE_X_KIND:
-				if (property->value.code.closures) {
+				if (property->value.code.closures)
 					fxVerifyQueue(the, list, path, property->value.code.closures, XS_NO_ID, 0, "Environment");
-				}
+                fxVerifyCode(the, list, path, property->value.code.address, ((txChunk*)(((txByte*)(property->value.code.address)) - sizeof(txChunk)))->size);
 				break;
 			case XS_DATA_VIEW_KIND:
 				property = property->next;
@@ -1079,6 +1410,23 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 			case XS_MAP_KIND:
 				if (!(property->flag & XS_DONT_SET_FLAG))
 					fxVerifyError(the, path, XS_NO_ID, 0, "MapData");
+				break;
+			case XS_MODULE_KIND:
+				{
+					txSlot* exports = mxModuleInstanceExports(instance);
+					if (mxIsReference(exports)) {
+						txSlot* property = exports->value.reference->next;
+						while (property) {
+							if (property->value.export.closure) {
+								txSlot* closure = property->value.export.closure;
+								closure->flag |= XS_DONT_DELETE_FLAG;
+								fxVerifyProperty(the, list, path, closure, property->ID, 0, C_NULL);
+								closure->flag &= ~XS_DONT_DELETE_FLAG;
+							}
+							property = property->next;
+						}
+					}
+				}
 				break;
 			case XS_PRIVATE_KIND:
 				{
@@ -1100,11 +1448,6 @@ void fxVerifyInstance(txMachine* the, txSlot* list, txSlot* path, txSlot* instan
 			case XS_SET_KIND:
 				if (!(property->flag & XS_DONT_SET_FLAG))
 					fxVerifyError(the, path, XS_NO_ID, 0, "SetData");
-				break;
-			case XS_TYPED_ARRAY_KIND:
-				property = property->next;
-				property = property->next;
-				fxVerifyQueue(the, list, path, property->value.reference, XS_NO_ID, 0, "ViewedArrayBuffer");
 				break;
 			case XS_WEAK_MAP_KIND:
 				if (!(property->flag & XS_DONT_SET_FLAG))
@@ -1149,6 +1492,8 @@ void fxVerifyQueue(txMachine* the, txSlot* list, txSlot* path, txSlot* instance,
 {
 	txSlot* item;
 	txSlot* name;
+	if (instance->kind != XS_INSTANCE_KIND)
+		return;
 	if (instance->flag & XS_LEVEL_FLAG)
 		return;
 	item = fxNewSlot(the);
