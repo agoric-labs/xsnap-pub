@@ -137,14 +137,42 @@ void fxAbort(txMachine* the, int status)
 		the->abortStatus = status;
 		fxExitToHost(the);
 		break;
-	case XS_UNHANDLED_EXCEPTION_EXIT:
+	case XS_UNHANDLED_EXCEPTION_EXIT: {
+		mxPush(mxException);
+		txSlot *exc = the->stack;
 		fxReport(the, "unhandled exception: %s\n", fxToString(the, &mxException));
 		mxException = mxUndefined;
+		mxTry(the) {
+			mxOverflow(-8);
+			mxPush(mxGlobal);
+			fxGetID(the, fxFindName(the, "console"));
+			fxCallID(the, fxFindName(the, "error"));
+			mxPushStringC("Unhandled exception:");
+			mxPushSlot(exc);
+			fxRunCount(the, 2);
+			mxPop();
+		}
+		mxCatch(the) {
+			fprintf(stderr, "Unhandled exception %s\n", fxToString(the, exc));
+		}
+		mxPop();
 		break;
-	case XS_UNHANDLED_REJECTION_EXIT:
+	}
+	case XS_UNHANDLED_REJECTION_EXIT: {
+		mxPush(mxException);
+		txSlot *exc = the->stack;
 		fxReport(the, "unhandled rejection: %s\n", fxToString(the, &mxException));
 		mxException = mxUndefined;
+		mxOverflow(-8);
+		mxPush(mxGlobal);
+		fxGetID(the, fxFindName(the, "console"));
+		fxCallID(the, fxFindName(the, "error"));
+		mxPushStringC("UnhandledPromiseRejectionWarning:");
+		mxPushSlot(exc);
+		fxRunCount(the, 2);
+		mxPop();
 		break;
+	}
 	default:
 		fxReport(the, "fxAbort(%d) - %s\n", status, fxToString(the, &mxException));
 #ifdef mxDebug
