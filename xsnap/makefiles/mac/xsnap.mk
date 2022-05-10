@@ -47,6 +47,9 @@ ifeq ($(GOAL),debug)
 else
 	C_OPTIONS += -DmxBoundsCheck=1 -O3
 endif
+ifeq ($(XSNAP_RANDOM_INIT),1)
+	C_OPTIONS += -DmxSnapshotRandomInit
+endif
 
 LIBRARIES = -framework CoreServices
 
