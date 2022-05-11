@@ -47,6 +47,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#if mxLinux && mxSnapshotRandomInit
+	#include <bsd/stdlib.h>
+#endif
 #include <string.h>
 #include <time.h>
 #if mxWindows

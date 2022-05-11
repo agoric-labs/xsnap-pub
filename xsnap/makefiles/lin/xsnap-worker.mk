@@ -53,6 +53,11 @@ endif
 
 LIBRARIES = -ldl -lm -lpthread
 
+ifeq ($(XSNAP_RANDOM_INIT),1)
+	LIBRARIES += -lbsd
+	C_OPTIONS += -DmxSnapshotRandomInit
+endif
+
 LINK_OPTIONS = -rdynamic
 
 OBJECTS = \
