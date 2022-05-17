@@ -338,11 +338,11 @@ void fxRunLoop(txMachine* the)
 						}
 					}
 					mxCatch(the) {
-                        fxAccess(the, &job->self);
-                        *mxResult = the->scratch;
-                        fxForget(the, &job->self);
-                        fxSetHostData(the, mxResult, NULL);
-                        job->the = NULL;
+						fxAccess(the, &job->self);
+						*mxResult = the->scratch;
+						fxForget(the, &job->self);
+						fxSetHostData(the, mxResult, NULL);
+						job->the = NULL;
 						fxAbort(the, XS_UNHANDLED_EXCEPTION_EXIT);
 					}
 					fxEndHost(the);
