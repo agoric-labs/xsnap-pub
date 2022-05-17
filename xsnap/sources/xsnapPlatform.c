@@ -155,6 +155,8 @@ void fxAbort(txMachine* the, int status)
 		mxCatch(the) {
 			fprintf(stderr, "Unhandled exception %s\n", fxToString(the, exc));
 		}
+		the->abortStatus = status;
+		fxExitToHost(the);
 		mxPop();
 		break;
 	}
