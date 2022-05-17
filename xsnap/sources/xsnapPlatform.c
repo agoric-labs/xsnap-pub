@@ -173,6 +173,8 @@ void fxAbort(txMachine* the, int status)
 		mxPushSlot(exc);
 		fxRunCount(the, 2);
 		mxPop();
+		the->abortStatus = status;
+		fxExitToHost(the);
 		break;
 	}
 	default:
