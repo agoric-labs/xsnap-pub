@@ -165,14 +165,19 @@ void fxAbort(txMachine* the, int status)
 		txSlot *exc = the->stack;
 		fxReport(the, "unhandled rejection: %s\n", fxToString(the, &mxException));
 		mxException = mxUndefined;
-		mxOverflow(-8);
-		mxPush(mxGlobal);
-		fxGetID(the, fxFindName(the, "console"));
-		fxCallID(the, fxFindName(the, "error"));
-		mxPushStringC("UnhandledPromiseRejectionWarning:");
-		mxPushSlot(exc);
-		fxRunCount(the, 2);
-		mxPop();
+		mxTry(the) {
+			mxOverflow(-8);
+			mxPush(mxGlobal);
+			fxGetID(the, fxFindName(the, "console"));
+			fxCallID(the, fxFindName(the, "error"));
+			mxPushStringC("UnhandledPromiseRejectionWarning:");
+			mxPushSlot(exc);
+			fxRunCount(the, 2);
+			mxPop();
+		}
+		mxCatch(the) {
+			fprintf(stderr, "Unhandled exception %s\n", fxToString(the, exc));
+		}
 		break;
 	}
 	default:
