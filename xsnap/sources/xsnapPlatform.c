@@ -155,6 +155,8 @@ void fxAbort(txMachine* the, int status)
 		mxCatch(the) {
 			fprintf(stderr, "Unhandled exception %s\n", fxToString(the, exc));
 		}
+		the->abortStatus = status;
+		fxExitToHost(the);
 		mxPop();
 		break;
 	}
@@ -163,14 +165,19 @@ void fxAbort(txMachine* the, int status)
 		txSlot *exc = the->stack;
 		fxReport(the, "unhandled rejection: %s\n", fxToString(the, &mxException));
 		mxException = mxUndefined;
-		mxOverflow(-8);
-		mxPush(mxGlobal);
-		fxGetID(the, fxFindName(the, "console"));
-		fxCallID(the, fxFindName(the, "error"));
-		mxPushStringC("UnhandledPromiseRejectionWarning:");
-		mxPushSlot(exc);
-		fxRunCount(the, 2);
-		mxPop();
+		mxTry(the) {
+			mxOverflow(-8);
+			mxPush(mxGlobal);
+			fxGetID(the, fxFindName(the, "console"));
+			fxCallID(the, fxFindName(the, "error"));
+			mxPushStringC("UnhandledPromiseRejectionWarning:");
+			mxPushSlot(exc);
+			fxRunCount(the, 2);
+			mxPop();
+		}
+		mxCatch(the) {
+			fprintf(stderr, "Unhandled exception %s\n", fxToString(the, exc));
+		}
 		break;
 	}
 	default:
@@ -338,11 +345,11 @@ void fxRunLoop(txMachine* the)
 						}
 					}
 					mxCatch(the) {
-                        fxAccess(the, &job->self);
-                        *mxResult = the->scratch;
-                        fxForget(the, &job->self);
-                        fxSetHostData(the, mxResult, NULL);
-                        job->the = NULL;
+						fxAccess(the, &job->self);
+						*mxResult = the->scratch;
+						fxForget(the, &job->self);
+						fxSetHostData(the, mxResult, NULL);
+						job->the = NULL;
 						fxAbort(the, XS_UNHANDLED_EXCEPTION_EXIT);
 					}
 					fxEndHost(the);
