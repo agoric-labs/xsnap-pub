@@ -379,11 +379,10 @@ static int gxStep = 0;
 void xsReplay(xsMachine* machine)
 {
 	char path[C_PATH_MAX];
-	char* names[5] = { "-evaluate.dat", "-issueCommand.dat", "-command.dat", "-reply.dat", "-options.json", };
+	char* names[6] = { "-evaluate.dat", "-issueCommand.dat", "-snapshot.dat", "-command.dat", "-reply.dat", "-options.json", };
 	for (;;) {
 		int which;
-		xsBeginHost(machine);
-		for (which = 0; which < 5; which++) {
+		for (which = 0; which < 6; which++) {
 			sprintf(path, "%05d%s", gxStep, names[which]);
 			{
 			#if mxWindows
@@ -394,6 +393,7 @@ void xsReplay(xsMachine* machine)
 				if ((stat(path, &a_stat) == 0) && (S_ISREG(a_stat.st_mode)))
 			#endif
 				{
+					gxStep++;
 					fprintf(stderr, "### %s\n", path);
 					FILE* file = fopen(path, "rb");
 					if (file) {
@@ -402,6 +402,7 @@ void xsReplay(xsMachine* machine)
 						length = ftell(file);
 						fseek(file, 0, SEEK_SET);
 						if (which == 0) {
+							xsBeginHost(machine);
 							xsStringValue string;
 							xsResult = xsStringBuffer(NULL, (xsIntegerValue)length);
 							string = xsToString(xsResult);
@@ -409,25 +410,55 @@ void xsReplay(xsMachine* machine)
 							string[length] = 0;
 							fclose(file);
 							xsCall1(xsGlobal, xsID("eval"), xsResult);
-							
+							fxRunLoop(machine);
+							xsEndHost(machine);
 						}
 						else if (which == 1) {
+							xsBeginHost(machine);
 							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
 							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
 							fclose(file);
 							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
-							
+							fxRunLoop(machine);
+							xsEndHost(machine);
 						}
+						else if (which == 2) {
+							char buffer[1024];
+							char* slash;
+							xsSnapshot snapshot = {
+								SNAPSHOT_SIGNATURE,
+								sizeof(SNAPSHOT_SIGNATURE) - 1,
+								gxSnapshotCallbacks,
+								mxSnapshotCallbackCount,
+								xsSnapshopRead,
+								xsSnapshopWrite,
+								NULL,
+								0,
+								NULL,
+								NULL,
+								NULL,
+							};
+							length = fread(buffer, 1, length, file);
+							buffer[length] = 0;
+							fclose(file);
+							slash = c_strrchr(buffer, '/');
+							if (slash) slash++;
+							else slash = buffer;
+							snapshot.stream = fopen(slash, "wb");
+							if (snapshot.stream) {
+								xsWriteSnapshot(machine, &snapshot);
+								fclose(snapshot.stream);
+							}
+						}
+						else
+							fclose(file);
 					}
 					break;
 				}
 			}
 		}
-		xsEndHost(machine);
-		if (which == 5)
+		if (which == 6)
 			break;
-		gxStep++;
-		fxRunLoop(machine);
 	}
 }
 
@@ -454,7 +485,7 @@ void xs_issueCommand(xsMachine* the)
 	FILE* file;
 	size_t length;
 	sprintf(path, "%05d-command.dat", gxStep);
-	fprintf(stderr, "### %s\n", path);
+	fprintf(stderr, "### %s %.*s\n", path, xsGetArrayBufferLength(xsArg(0)), (char*)xsToArrayBuffer(xsArg(0)));
 	gxStep++;
 	sprintf(path, "%05d-reply.dat", gxStep);
 	fprintf(stderr, "### %s\n", path);
