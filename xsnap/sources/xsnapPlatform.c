@@ -1674,7 +1674,8 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 			if (chunk->temporary)
 				(*(txDumpChunk)(chunk->temporary))(stderr, address + sizeof(txChunk), chunk->size - sizeof(txChunk));
 			else
-				fprintf(stderr, "\n\t\t?");
+				fxDumpChunkData(stderr, address + sizeof(txChunk), chunk->size - sizeof(txChunk));
+// 			fxDumpChunkData(stderr, address + sizeof(txChunk), chunk->size - sizeof(txChunk));
 			fprintf(stderr, "\n");
 			address += chunk->size;
 			offset += chunk->size;
@@ -1776,7 +1777,10 @@ void fxDumpChunk(txSlot* slot, txByte* block)
 		chunk = (txChunk*)(block + (size_t)(slot->value.bigint.data) - sizeof(txChunk));
 		chunk->temporary = (txByte*)fxDumpChunkData;
 	} break;
-	case XS_ARRAY_KIND: {
+	case XS_ARGUMENTS_SLOPPY_KIND:
+	case XS_ARGUMENTS_STRICT_KIND:
+	case XS_ARRAY_KIND:
+	case XS_STACK_KIND: {
 		if (slot->value.array.address) {
 			chunk = (txChunk*)(block + (size_t)(slot->value.array.address) - sizeof(txChunk));
 			chunk->temporary = (txByte*)fxDumpChunkArray;
@@ -1803,14 +1807,6 @@ void fxDumpChunk(txSlot* slot, txByte* block)
 		chunk = (txChunk*)(block + (size_t)(slot->value.code.address) - sizeof(txChunk));
 		chunk->temporary = (txByte*)fxDumpChunkData;
 	} break;
-	case XS_GLOBAL_KIND: {
-		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
-		chunk->temporary = (txByte*)fxDumpChunkTable;
-	} break;
-	case XS_MAP_KIND: {
-		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
-		chunk->temporary = (txByte*)fxDumpChunkTable;
-	} break;
 	case XS_REGEXP_KIND: {
 		if (slot->value.regexp.code) {
 			chunk = (txChunk*)(block + (size_t)(slot->value.regexp.code) - sizeof(txChunk));
@@ -1821,14 +1817,22 @@ void fxDumpChunk(txSlot* slot, txByte* block)
 			chunk->temporary = (txByte*)fxDumpChunkData;
 		}
 	} break;
-	case XS_SET_KIND: {
-		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
-		chunk->temporary = (txByte*)fxDumpChunkTable;
-	} break;
 	case XS_KEY_KIND: {
 		if (slot->value.key.string) {
 			chunk = (txChunk*)(block + (size_t)(slot->value.key.string) - sizeof(txChunk));
 			chunk->temporary = (txByte*)fxDumpChunkString;
+		}
+	} break;
+	case XS_GLOBAL_KIND:
+	case XS_MAP_KIND:
+	case XS_SET_KIND: {
+		chunk = (txChunk*)(block + (size_t)(slot->value.table.address) - sizeof(txChunk));
+		chunk->temporary = (txByte*)fxDumpChunkTable;
+	} break;
+	case XS_HOST_KIND: {
+		if (slot->value.host.data) {
+			chunk = (txChunk*)(block + (size_t)(slot->value.host.data) - sizeof(txChunk));
+			chunk->temporary = (txByte*)fxDumpChunkData;
 		}
 	} break;
 	default:
@@ -2041,6 +2045,8 @@ void fxDumpSlot(FILE* file, txSlot* slot)
 		fxDumpSlotAddress(file, slot->value.instance.prototype);
 		fprintf(file, " }");
 	} break;
+	case XS_ARGUMENTS_SLOPPY_KIND:
+	case XS_ARGUMENTS_STRICT_KIND:
 	case XS_ARRAY_KIND: {
 		fprintf(file, "array = { .address = ");
 		fxDumpChunkAddress(file, slot->value.array.address);
@@ -2087,9 +2093,6 @@ void fxDumpSlot(FILE* file, txSlot* slot)
 		fprintf(file, "global = { .address = ");
 		fxDumpChunkAddress(file, slot->value.table.address);
 		fprintf(file, ", .length = %d }", (int)slot->value.table.length);
-	} break;
-	case XS_HOST_KIND: {
-		fprintf(file, ".kind = XS_HOST_KIND}, ");
 	} break;
 	case XS_MAP_KIND: {
 		fprintf(file, "map = { .address = ");
@@ -2173,9 +2176,9 @@ void fxDumpSlot(FILE* file, txSlot* slot)
 		fprintf(file, ", 0x%x }", slot->value.entry.sum);
 	} break;
 	case XS_ERROR_KIND: {
-		fprintf(file, "error = ");
-		fxDumpSlotAddress(file, slot->value.reference);
-		fprintf(file, " }");
+		fprintf(file, "error = { ");
+		fxDumpSlotAddress(file, slot->value.error.info);
+		fprintf(file, ", %d }", slot->value.error.which);
 	} break;
 	case XS_EXPORT_KIND: {
 		fprintf(file, "export = { .closure = ");
@@ -2211,13 +2214,20 @@ void fxDumpSlot(FILE* file, txSlot* slot)
 		fprintf(file, " }");
 	} break;
 	case XS_STACK_KIND: {
-		fprintf(file, "stack");
+		fprintf(file, "stack = { .address = ");
+		fxDumpChunkAddress(file, slot->value.array.address);
+		fprintf(file, ", .length = %d }", (int)slot->value.array.length);
 	} break;
 	case XS_WEAK_ENTRY_KIND: {
 		fprintf(file, "weakEntry = { .check = ");
 		fxDumpSlotAddress(file, slot->value.weakEntry.check);
 		fprintf(file, ", .value = ");
 		fxDumpSlotAddress(file, slot->value.weakEntry.value);
+		fprintf(file, " }");
+	} break;
+	case XS_HOST_KIND: {
+		fprintf(file, "host = { .data = ");
+		fxDumpChunkAddress(file, slot->value.host.data);
 		fprintf(file, " }");
 	} break;
 	default:
