@@ -27,10 +27,15 @@ Once started, the process listens on file descriptor 3, and will write to file d
   * the worker writes a netstring with the following body to fd4:
     * `.${meterObj}\1${result}`
     * the `.` prefix indicates success
-    * "meterObj" is a JSON-parseable record, with string keys and numeric values, currently containing `{ currentHeapCount, compute, allocate }`
+    * "meterObj" is a JSON-parseable record, with string keys and numeric values, currently containing `{ currentHeapCount, compute, allocate, timestamps }`
       * `currentHeapCount` is the number of bytes allocated by the JS engine (`fxGetCurrentHeapCount()`), it never goes down
       * `compute` is the number of computrons used during the evaluation/`handleCommand()` (`meterIndex)`
       * `allocate` is `the->allocatedSpace`
+      * `timestamps` is an array of numbers (fractional seconds since epoch):
+        * the first is the time at which the `e` or `?` command was received by the worker (recorded just after the fd3 netstring is parsed)
+        * followed by a pair for each `issueCommand` sent to the parent: the first is the time just before the `issueCommand` is written to fd4, the second is the time just after the response is received on fd3
+        * the last is the time just before the `.${meterObj}\1${result}` body is serialized, immediately before it is written back to the parent on fd4 to complete the delivery
+      * only the first 100 such timestamps are reported; any later ones are omitted
     * the meterObj is separated from the result by a 0x01 byte (i.e. U+0001 if the body is parsed as UTF-8)
     * the `result` field is the ArrayBuffer
 * `s` (run script): the body is treated as the filename of a program to run (`xsRunProgramFile`)
