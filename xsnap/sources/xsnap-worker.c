@@ -515,7 +515,6 @@ int main(int argc, char* argv[])
 					}
 				}
 				break;
-			case -1:
 			default:
 				done = 1;
 				break;
