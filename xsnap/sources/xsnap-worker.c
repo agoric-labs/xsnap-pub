@@ -147,6 +147,67 @@ typedef enum {
 	E_TOO_MUCH_COMPUTATION = 17,
 } ExitCode;
 
+#define MAX_TIMESTAMPS 100
+static struct timeval timestamps[MAX_TIMESTAMPS];
+static unsigned int num_timestamps;
+static unsigned int timestamps_overrun;
+static void resetTimestamps() {
+	timestamps_overrun = 0;
+	num_timestamps = 0;
+	// on 64-bit platforms, 'struct timeval' usually needs 8+8=16 bytes
+	//printf("sizeof(time_t): %ld\n", sizeof(time_t));
+	//printf("sizeof(time_suseconts_t): %ld\n", sizeof(suseconds_t));
+}
+static void recordTimestamp() {
+	if (num_timestamps < MAX_TIMESTAMPS) {
+		gettimeofday(&(timestamps[num_timestamps]), NULL);
+		num_timestamps += 1;
+	} else {
+		timestamps_overrun = 1;
+	}
+}
+
+// 2^64 is 18446744073709551616 , which is 20 characters long
+#define DIGITS_FOR_64 20
+// [AA.AA,BB.BB,CC.CC]\0
+static char timestampBuffer[1 + MAX_TIMESTAMPS * (DIGITS_FOR_64 + 1 + DIGITS_FOR_64 + 1) + 1];
+// careless overprovisioning: the fractional part is only 6 digits,
+// not 20, also we never add a trailing comma
+
+static char *renderTimestamps() {
+	// return pointer to static string buffer with '[NN.NN,NN.NN]', or NULL
+	unsigned int size, i, wrote;
+	char *p = timestampBuffer;
+	size = sizeof(timestampBuffer); // holds all numbers, commas, and \0
+	*(p++) = '['; size--;
+	for (i = 0; i < num_timestamps; i++) {
+		// snprintf() returns "the number of characters that would have
+		// been printed if the size were unlimited, not including the
+		// final \0". It writes at most size-1 characters, then writes
+		// the trailing \0.
+		wrote = snprintf(p, size, "%lu.%06lu",
+						 timestamps[i].tv_sec, timestamps[i].tv_usec);
+		p += wrote;
+		size -= wrote;
+		if (size < 2) { // 2 is enough for "]\0", but 1 is not
+			return NULL;
+		}
+		if (i+1 < num_timestamps) {
+			// 2 is also enough for a comma
+			*(p++) = ','; size--;
+		}
+		if (size < 2) { // but the comma might reduce size below 2
+			return NULL;
+		}
+	}
+	if (size < 2) { // paranoia, also in case loop never loops
+		return NULL;
+	}
+	*(p++) = ']'; size--;
+	*(p++) = '\0'; size--;
+	return timestampBuffer;
+}
+
 int main(int argc, char* argv[])
 {
 	int argi;
@@ -289,7 +350,9 @@ int main(int argc, char* argv[])
 			xsUnsignedValue meterIndex = 0;
 			char* nsbuf;
 			size_t nslen;
+			resetTimestamps();
 			int readError = fxReadNetString(fromParent, &nsbuf, &nslen);
+			recordTimestamp(); // delivery received from parent
 			int writeError = 0;
 
 			if (readError != 0) {
@@ -452,7 +515,6 @@ int main(int argc, char* argv[])
 					}
 				}
 				break;
-			case -1:
 			default:
 				done = 1;
 				break;
@@ -672,19 +734,26 @@ static char* fxReadNetStringError(int code)
 
 static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *the, char* buf, size_t length)
 {
+	recordTimestamp(); // delivery-result sent to parent
+	char *tsbuf = renderTimestamps();
+	if (!tsbuf) {
+		// rendering overrun error, send empty list
+		tsbuf = "[]";
+	}
 	char fmt[] = ("." // OK
 				  "{"
 				  "\"currentHeapCount\":%u,"
 				  "\"compute\":%u,"
-				  "\"allocate\":%u}"
+				  "\"allocate\":%u,"
+				  "\"timestamps\":%s}"
 				  "\1" // separate meter info from result
 				  );
 	char numeral64[] = "12345678901234567890"; // big enough for 64bit numeral
-	char prefix[8 + sizeof fmt + 8 * sizeof numeral64];
+	char prefix[8 + sizeof fmt + 8 * sizeof numeral64 + sizeof timestampBuffer];
 	// Prepend the meter usage to the reply.
 	snprintf(prefix, sizeof(prefix) - 1, fmt,
 			 fxGetCurrentHeapCount(the),
-			 meterIndex, the->allocatedSpace);
+			 meterIndex, the->allocatedSpace, tsbuf);
 	return fxWriteNetString(outStream, prefix, buf, length);
 }
 
@@ -739,6 +808,7 @@ static void xs_issueCommand(xsMachine *the)
 	if (writeError != 0) {
 		xsUnknownError(fxWriteNetStringError(writeError));
 	}
+	recordTimestamp(); // command sent to parent
 
 	// read netstring
 	size_t len;
@@ -746,6 +816,7 @@ static void xs_issueCommand(xsMachine *the)
 	if (readError != 0) {
 		xsUnknownError(fxReadNetStringError(readError));
 	}
+	recordTimestamp(); // command-result received from parent
 
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
