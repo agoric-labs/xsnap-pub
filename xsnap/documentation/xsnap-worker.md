@@ -36,11 +36,13 @@ Once started, the process listens on file descriptor 3, and will write to file d
         * followed by a pair for each `issueCommand` sent to the parent: the first is the time just before the `issueCommand` is written to fd4, the second is the time just after the response is received on fd3
         * the last is the time just before the `.${meterObj}\1${result}` body is serialized, immediately before it is written back to the parent on fd4 to complete the delivery
       * only the first 100 such timestamps are reported; any later ones are omitted
+      * all times are as reported by unix `gettimeofday()`, with microsecond precision
     * the meterObj is separated from the result by a 0x01 byte (i.e. U+0001 if the body is parsed as UTF-8)
     * the `result` field is the ArrayBuffer
 * `s` (run script): the body is treated as the filename of a program to run (`xsRunProgramFile`)
 * `m` (load module): the body is treated as the name of a module to load (`xsRunModuleFile`). The module must already be defined, perhaps pre-compiled into the `xsnap` executable.
   * for both `s` and `m`, an error writes a terse `!` to fd4, and success writes `.${meterObj}\1` (the same success response as for `e`/`?` but with an empty message: just the metering data)
+  * both `s` and `m` are holdovers from `xsnap.c`, and should be considered deprecated in `xsnap-worker.c`
 * `w`: the body is treated as a filename. A GC collection is triggered, and then the JS engine state snapshot (the entire virtual machine state: heap, stack, symbol table, etc) is written to the given filename. Then execution continues normally. The response is `!` or `.${meterObj}\1` as with `s`/`m`
 * all other command characters cause the worker to exit
 
