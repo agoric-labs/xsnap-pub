@@ -483,6 +483,39 @@ int main(int argc, char* argv[])
 				}
 				break;
 
+			case 'r':
+			#if XSNAP_TEST_RECORD
+				fxTestRecord(mxTestRecordParam, nsbuf + 1, nslen - 1);
+			#endif
+				path = nsbuf + 1;
+				snapshot.stream = fopen(path, "rb");
+				xsSuspendMetering(machine);
+				if (snapshot.stream) {
+					xsDeleteMachine(machine);
+					machine = xsReadSnapshot(&snapshot, "xsnap", NULL);
+					fclose(snapshot.stream);
+				}	else {
+					snapshot.error = errno;
+				}
+				if (snapshot.error) {
+					fprintf(stderr, "cannot read snapshot %s: %s\n",
+							path, strerror(snapshot.error));
+					// TODO: dynamically build error message including Exception message.
+					int writeError = fxWriteNetString(toParent, "!", "", 0);
+					if (writeError != 0) {
+						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
+					}
+					c_exit(E_IO_ERROR);
+				} else {
+					int writeError = fxWriteOkay(toParent, meterIndex, machine, "", 0);
+					if (writeError != 0) {
+						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
+						c_exit(E_IO_ERROR);
+					}
+				}
+				xsResumeMetering(machine, fxMeteringCallback, interval);
+				break;
+				
 			case 'w':
 			#if XSNAP_TEST_RECORD
 				fxTestRecord(mxTestRecordParam, nsbuf + 1, nslen - 1);
