@@ -220,6 +220,7 @@ void print_pointers() {
 	printf(".bss  pointer: %p\n", &bss_pointer_value);
 	printf("heap  pointer: %p\n", heap_pointer);
 	printf("stack pointer: %p\n", &stack_value);
+	free(heap_pointer);
 }
 
 int main(int argc, char* argv[])
