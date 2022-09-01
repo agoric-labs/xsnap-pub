@@ -383,6 +383,7 @@ int main(int argc, char* argv[])
 							#if XSNAP_TEST_RECORD
 								fxTestRecord(mxTestRecordJSON | mxTestRecordParam, nsbuf + 1, nslen - 1);
 							#endif
+							// TODO: can we avoid a copy?
 							xsVar(0) = xsArrayBuffer(nsbuf + 1, nslen - 1);
 							xsVar(1) = xsCall1(xsGlobal, xsID("handleCommand"), xsVar(0));
 						} else {
@@ -793,21 +794,12 @@ static void xs_issueCommand(xsMachine *the)
 		xsTypeError("expected ArrayBuffer");
 	}
 
-	size_t length;
-	char* buf = NULL;
-	length = xsGetArrayBufferLength(xsArg(0));
-
-	buf = malloc(length);
-	if (!buf) {
-		fxAbort(the, xsNotEnoughMemoryExit);
-	}
-
+	size_t length = xsGetArrayBufferLength(xsArg(0));
+	char* buf = xsToArrayBuffer(xsArg(0));
+  
 	recordTimestamp(); // before sending command to parent
 
-	xsGetArrayBufferData(xsArg(0), 0, buf, length);
 	int writeError = fxWriteNetString(toParent, "?", buf, length);
-
-	free(buf);
 
 	if (writeError != 0) {
 		xsUnknownError(fxWriteNetStringError(writeError));
@@ -824,6 +816,7 @@ static void xs_issueCommand(xsMachine *the)
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
 #endif
+	// TODO: can we avoid a copy?
 	xsResult = xsArrayBuffer(buf, len);
 	free(buf);
 }
