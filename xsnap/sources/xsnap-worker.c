@@ -352,7 +352,7 @@ int main(int argc, char* argv[])
 			size_t nslen;
 			resetTimestamps();
 			int readError = fxReadNetString(fromParent, &nsbuf, &nslen);
-			recordTimestamp(); // delivery received from parent
+			recordTimestamp(); // after delivery received from parent
 			int writeError = 0;
 
 			if (readError != 0) {
@@ -734,7 +734,7 @@ static char* fxReadNetStringError(int code)
 
 static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *the, char* buf, size_t length)
 {
-	recordTimestamp(); // delivery-result sent to parent
+	recordTimestamp(); // before sending delivery-result to parent
 	char *tsbuf = renderTimestamps();
 	if (!tsbuf) {
 		// rendering overrun error, send empty list
@@ -800,6 +800,8 @@ static void xs_issueCommand(xsMachine *the)
 		fxAbort(the, xsNotEnoughMemoryExit);
 	}
 
+	recordTimestamp(); // before sending command to parent
+
 	xsGetArrayBufferData(xsArg(0), 0, buf, length);
 	int writeError = fxWriteNetString(toParent, "?", buf, length);
 
@@ -808,7 +810,6 @@ static void xs_issueCommand(xsMachine *the)
 	if (writeError != 0) {
 		xsUnknownError(fxWriteNetStringError(writeError));
 	}
-	recordTimestamp(); // command sent to parent
 
 	// read netstring
 	size_t len;
@@ -816,7 +817,7 @@ static void xs_issueCommand(xsMachine *the)
 	if (readError != 0) {
 		xsUnknownError(fxReadNetStringError(readError));
 	}
-	recordTimestamp(); // command-result received from parent
+	recordTimestamp(); // after command-result received from parent
 
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
