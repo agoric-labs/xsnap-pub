@@ -147,7 +147,8 @@ typedef enum {
 	E_TOO_MUCH_COMPUTATION = 17,
 } ExitCode;
 
-#define MAX_TIMESTAMPS 100
+// 250 syscalls
+#define MAX_TIMESTAMPS 502
 static struct timeval timestamps[MAX_TIMESTAMPS];
 static unsigned int num_timestamps;
 static unsigned int timestamps_overrun;
@@ -170,9 +171,10 @@ static void recordTimestamp() {
 // 2^64 is 18446744073709551616 , which is 20 characters long
 #define DIGITS_FOR_64 20
 // [AA.AA,BB.BB,CC.CC]\0
-static char timestampBuffer[1 + MAX_TIMESTAMPS * (DIGITS_FOR_64 + 1 + DIGITS_FOR_64 + 1) + 1];
-// careless overprovisioning: the fractional part is only 6 digits,
-// not 20, also we never add a trailing comma
+static char timestampBuffer[1 + MAX_TIMESTAMPS * (DIGITS_FOR_64 + 1 + 6 + 1) + 1];
+// over provisioning by considering all "sec" values as the max printed length.
+// While the last timestamps does not have a trailing comma, the payload ends
+// with both a closing square bracket and a null byte.
 
 static char *renderTimestamps() {
 	// return pointer to static string buffer with '[NN.NN,NN.NN]', or NULL
