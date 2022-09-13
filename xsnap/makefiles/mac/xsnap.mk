@@ -27,6 +27,7 @@ C_OPTIONS = \
 	$(MACOS_VERSION_MIN) \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
+	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
@@ -82,6 +83,7 @@ OBJECTS = \
 	$(TMP_DIR)/xsGlobal.o \
 	$(TMP_DIR)/xsJSON.o \
 	$(TMP_DIR)/xsLexical.o \
+	$(TMP_DIR)/xsLockdown.o \
 	$(TMP_DIR)/xsMapSet.o \
 	$(TMP_DIR)/xsMarshall.o \
 	$(TMP_DIR)/xsMath.o \
