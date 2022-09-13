@@ -125,6 +125,8 @@ int main(int argc, char* argv[])
 		NULL,
 		NULL,
 		NULL,
+		0,
+		NULL,
 	};
 	xsMachine* machine;
 	char path[C_PATH_MAX];
@@ -437,6 +439,8 @@ void xsReplay(xsMachine* machine)
 								NULL,
 								NULL,
 								NULL,
+								0,
+								NULL
 							};
 							length = fread(buffer, 1, length, file);
 							buffer[length] = 0;
