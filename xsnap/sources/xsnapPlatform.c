@@ -306,6 +306,7 @@ void fxRunLoop(txMachine* the)
 	txNumber when;
 	txJob* job;
 	txJob** address;
+	// Comment next line to make snapshots consistent again.
 	fxEndJob(the);
 	for (;;) {
 		while (the->promiseJobs) {
