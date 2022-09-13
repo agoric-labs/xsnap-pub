@@ -28,6 +28,7 @@ C_OPTIONS = \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
 	-DXSNAP_VERSION=\"$(XSNAP_VERSION)\" \
 	-DXSNAP_TEST_RECORD=0 \
+	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
 	-DmxNoConsole=1 \
@@ -82,6 +83,7 @@ OBJECTS = \
 	$(TMP_DIR)/xsGlobal.o \
 	$(TMP_DIR)/xsJSON.o \
 	$(TMP_DIR)/xsLexical.o \
+	$(TMP_DIR)/xsLockdown.o \
 	$(TMP_DIR)/xsMapSet.o \
 	$(TMP_DIR)/xsMarshall.o \
 	$(TMP_DIR)/xsMath.o \
