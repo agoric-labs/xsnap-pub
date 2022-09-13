@@ -102,16 +102,17 @@ int main(int argc, char* argv[])
 	int error = 0;
 	int interval = 0;
 	int option = 0;
+	int parserBufferSize = 8192 * 1024;
 	xsCreation _creation = {
-		16 * 1024 * 1024, 	/* initialChunkSize */
-		4 * 1024 * 1024, 	/* incrementalChunkSize */
-		1 * 1024 * 1024, 	/* initialHeapCount */
-		1 * 1024 * 1024, 	/* incrementalHeapCount */
-		4096, 				/* stackCount */
-		256 * 1024, 		/* keyCount */
-		1993, 				/* nameModulo */
-		127, 				/* symbolModulo */
-		256 * 1024,			/* parserBufferSize */
+		32 * 1024 * 1024,	/* initialChunkSize */
+		4 * 1024 * 1024,	/* incrementalChunkSize */
+		256 * 1024,			/* initialHeapCount */
+		128 * 1024,			/* incrementalHeapCount */
+		4096,				/* stackCount */
+		32000,				/* keyCount */
+		1993,				/* nameModulo */
+		127,				/* symbolModulo */
+		parserBufferSize,	/* parserBufferSize */
 		1993,				/* parserTableModulo */
 	};
 	xsCreation* creation = &_creation;
