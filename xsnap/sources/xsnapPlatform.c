@@ -306,6 +306,7 @@ void fxRunLoop(txMachine* the)
 	txNumber when;
 	txJob* job;
 	txJob** address;
+	fxEndJob(the);
 	for (;;) {
 		while (the->promiseJobs) {
 			while (the->promiseJobs) {
@@ -363,6 +364,7 @@ void fxRunLoop(txMachine* the)
 			}
 		}
 	}
+	fxCheckUnhandledRejections(the, 1);
 }
 
 void fxFulfillModuleFile(txMachine* the)
@@ -1575,7 +1577,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 	txCreation creation;
 	Atom blockAtom;
 	txByte* block = C_NULL;
-	txByte* blockLimit;
+// 	txByte* blockLimit;
 	Atom heapAtom;
 	txSlot* heap = C_NULL;
 	txSlot* heapLimit;
@@ -1637,7 +1639,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		block = c_malloc(blockAtom.atomSize);
 		mxThrowIf(block == C_NULL);
 		mxThrowIf((*snapshot->read)(snapshot->stream, block, blockAtom.atomSize));
-		blockLimit = block + blockAtom.atomSize;
+//		blockLimit = block + blockAtom.atomSize;
 
 		mxThrowIf((*snapshot->read)(snapshot->stream, &heapAtom, sizeof(Atom)));
 		heapAtom.atomSize = ntohl(heapAtom.atomSize) - 8;
@@ -1899,9 +1901,7 @@ void fxDumpChunkTable(FILE* file, txByte* data, txSize size)
 
 void fxDumpID(FILE* file, txID id)
 {
-	if (id < 0)
-		fprintf(file, "ID_?     ");
-	else if (id == 0)
+	if (id == 0)
 		fprintf(file, "         ");
 	else
 		fprintf(file, "ID_%6.6d", id);
