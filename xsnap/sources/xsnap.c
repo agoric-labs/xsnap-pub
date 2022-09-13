@@ -517,7 +517,7 @@ void xs_issueCommand(xsMachine* the)
 	
 	if ((length != argLength) || c_memcmp(data, argData, length)) {
 		fprintf(stderr, "### %s %.*s\n", path, (int)argLength, (char*)argData);
-// 		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
+		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
 	}
 	else
 		fprintf(stderr, "### %s\n", path);
