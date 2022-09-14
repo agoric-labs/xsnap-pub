@@ -143,7 +143,8 @@ typedef enum {
 	E_TOO_MUCH_COMPUTATION = 17,
 } ExitCode;
 
-#define MAX_TIMESTAMPS 100
+// 250 syscalls
+#define MAX_TIMESTAMPS 502
 static struct timeval timestamps[MAX_TIMESTAMPS];
 static unsigned int num_timestamps;
 static unsigned int timestamps_overrun;
@@ -166,9 +167,10 @@ static void recordTimestamp() {
 // 2^64 is 18446744073709551616 , which is 20 characters long
 #define DIGITS_FOR_64 20
 // [AA.AA,BB.BB,CC.CC]\0
-static char timestampBuffer[1 + MAX_TIMESTAMPS * (DIGITS_FOR_64 + 1 + DIGITS_FOR_64 + 1) + 1];
-// careless overprovisioning: the fractional part is only 6 digits,
-// not 20, also we never add a trailing comma
+static char timestampBuffer[1 + MAX_TIMESTAMPS * (DIGITS_FOR_64 + 1 + 6 + 1) + 1];
+// over provisioning by considering all "sec" values as the max printed length.
+// While the last timestamps does not have a trailing comma, the payload ends
+// with both a closing square bracket and a null byte.
 
 static char *renderTimestamps() {
 	// return pointer to static string buffer with '[NN.NN,NN.NN]', or NULL
@@ -350,7 +352,7 @@ int main(int argc, char* argv[])
 			size_t nslen;
 			resetTimestamps();
 			int readError = fxReadNetString(fromParent, &nsbuf, &nslen);
-			recordTimestamp(); // delivery received from parent
+			recordTimestamp(); // after delivery received from parent
 			int writeError = 0;
 
 			if (readError != 0) {
@@ -379,6 +381,7 @@ int main(int argc, char* argv[])
 							#if XSNAP_TEST_RECORD
 								fxTestRecord(mxTestRecordJSON | mxTestRecordParam, nsbuf + 1, nslen - 1);
 							#endif
+							// TODO: can we avoid a copy?
 							xsVar(0) = xsArrayBuffer(nsbuf + 1, nslen - 1);
 							xsVar(1) = xsCall1(xsGlobal, xsID("handleCommand"), xsVar(0));
 						} else {
@@ -732,7 +735,7 @@ static char* fxReadNetStringError(int code)
 
 static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *the, char* buf, size_t length)
 {
-	recordTimestamp(); // delivery-result sent to parent
+	recordTimestamp(); // before sending delivery-result to parent
 	char *tsbuf = renderTimestamps();
 	if (!tsbuf) {
 		// rendering overrun error, send empty list
@@ -789,24 +792,16 @@ static void xs_issueCommand(xsMachine *the)
 		xsTypeError("expected ArrayBuffer");
 	}
 
-	size_t length;
-	char* buf = NULL;
-	length = xsGetArrayBufferLength(xsArg(0));
+	size_t length = xsGetArrayBufferLength(xsArg(0));
+	char* buf = xsToArrayBuffer(xsArg(0));
+  
+	recordTimestamp(); // before sending command to parent
 
-	buf = malloc(length);
-	if (!buf) {
-		fxAbort(the, xsNotEnoughMemoryExit);
-	}
-
-	xsGetArrayBufferData(xsArg(0), 0, buf, length);
 	int writeError = fxWriteNetString(toParent, "?", buf, length);
-
-	free(buf);
 
 	if (writeError != 0) {
 		xsUnknownError(fxWriteNetStringError(writeError));
 	}
-	recordTimestamp(); // command sent to parent
 
 	// read netstring
 	size_t len;
@@ -814,11 +809,12 @@ static void xs_issueCommand(xsMachine *the)
 	if (readError != 0) {
 		xsUnknownError(fxReadNetStringError(readError));
 	}
-	recordTimestamp(); // command-result received from parent
+	recordTimestamp(); // after command-result received from parent
 
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
 #endif
+	// TODO: can we avoid a copy?
 	xsResult = xsArrayBuffer(buf, len);
 	free(buf);
 }
