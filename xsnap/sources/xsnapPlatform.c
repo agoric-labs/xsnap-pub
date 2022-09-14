@@ -711,6 +711,11 @@ void fxSetCurrentMeter(txMachine* the, txUnsigned value)
 }
 #endif
 
+txSize fxGetCurrentHeapCount(txMachine* the)
+{
+	return the->currentHeapCount;
+}
+
 extern void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot);
 
 typedef void (*txDumpChunk)(FILE* file, txByte* data, txSize size);

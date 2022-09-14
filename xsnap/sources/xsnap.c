@@ -100,16 +100,17 @@ int main(int argc, char* argv[])
 	int error = 0;
 	int interval = 0;
 	int option = 0;
+	int parserBufferSize = 8192 * 1024;
 	xsCreation _creation = {
-		16 * 1024 * 1024, 	/* initialChunkSize */
-		4 * 1024 * 1024, 	/* incrementalChunkSize */
-		1 * 1024 * 1024, 	/* initialHeapCount */
-		1 * 1024 * 1024, 	/* incrementalHeapCount */
-		4096, 				/* stackCount */
-		256 * 1024, 		/* keyCount */
-		1993, 				/* nameModulo */
-		127, 				/* symbolModulo */
-		256 * 1024,			/* parserBufferSize */
+		32 * 1024 * 1024,	/* initialChunkSize */
+		4 * 1024 * 1024,	/* incrementalChunkSize */
+		256 * 1024,			/* initialHeapCount */
+		128 * 1024,			/* incrementalHeapCount */
+		4096,				/* stackCount */
+		32000,				/* keyCount */
+		1993,				/* nameModulo */
+		127,				/* symbolModulo */
+		parserBufferSize,	/* parserBufferSize */
 		1993,				/* parserTableModulo */
 	};
 	xsCreation* creation = &_creation;
@@ -500,13 +501,13 @@ void xs_issueCommand(xsMachine* the)
 	
 	sprintf(path, "%05d-command.dat", gxStep);
 	gxStep++;
+	
 	file = fopen(path, "rb");
 	if (!file) xsUnknownError("cannot open %s", path);
 	fseek(file, 0, SEEK_END);
 	length = ftell(file);
 	fseek(file, 0, SEEK_SET);
-	xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-	data = xsToArrayBuffer(xsResult);
+	data = c_malloc(length);
 	length = fread(data, 1, length, file);	
 	fclose(file);
 	
@@ -515,10 +516,11 @@ void xs_issueCommand(xsMachine* the)
 	
 	if ((length != argLength) || c_memcmp(data, argData, length)) {
 		fprintf(stderr, "### %s %.*s\n", path, (int)argLength, (char*)argData);
-// 		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
+		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
 	}
 	else
 		fprintf(stderr, "### %s\n", path);
+	c_free(data);
 	
 	sprintf(path, "%05d-reply.dat", gxStep);
 	fprintf(stderr, "### %s\n", path);
