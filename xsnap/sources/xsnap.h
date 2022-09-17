@@ -17,6 +17,8 @@ struct xsSnapshotRecord {
 	void* firstChunk;
 	void* firstProjection;
 	void* firstSlot;
+	int slotSize;
+	void* slots;
 };
 
 #define xsInitializeSharedCluster() \

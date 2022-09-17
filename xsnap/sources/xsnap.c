@@ -37,7 +37,10 @@ extern void xs_base64_encode(xsMachine *the);
 extern void xs_base64_decode(xsMachine *the);
 extern void modInstallBase64(xsMachine *the);
 
-#define mxSnapshotCallbackCount 21
+// The order of the callbacks materially affects how they are introduced to
+// code that runs from a snapshot, so must be consistent in the face of
+// upgrade.
+#define mxSnapshotCallbackCount 17
 xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	xs_issueCommand, // 0
 	xs_print, // 1
@@ -59,11 +62,10 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 
 	xs_base64_encode, // 15
 	xs_base64_decode, // 16
-	
-	fx_harden, // 17
-	xs_lockdown, // 18
-	fx_petrify, // 19
-	fx_mutabilities, // 20
+
+	// fx_setInterval,
+	// fx_setTimeout,
+	// fx_clearTimer,
 };
 
 static int xsSnapshopRead(void* stream, void* address, size_t size)
@@ -100,16 +102,17 @@ int main(int argc, char* argv[])
 	int error = 0;
 	int interval = 0;
 	int option = 0;
+	int parserBufferSize = 8192 * 1024;
 	xsCreation _creation = {
-		16 * 1024 * 1024, 	/* initialChunkSize */
-		4 * 1024 * 1024, 	/* incrementalChunkSize */
-		1 * 1024 * 1024, 	/* initialHeapCount */
-		1 * 1024 * 1024, 	/* incrementalHeapCount */
-		4096, 				/* stackCount */
-		256 * 1024, 		/* keyCount */
-		1993, 				/* nameModulo */
-		127, 				/* symbolModulo */
-		256 * 1024,			/* parserBufferSize */
+		32 * 1024 * 1024,	/* initialChunkSize */
+		4 * 1024 * 1024,	/* incrementalChunkSize */
+		256 * 1024,			/* initialHeapCount */
+		128 * 1024,			/* incrementalHeapCount */
+		4096,				/* stackCount */
+		32000,				/* keyCount */
+		1993,				/* nameModulo */
+		127,				/* symbolModulo */
+		parserBufferSize,	/* parserBufferSize */
 		1993,				/* parserTableModulo */
 	};
 	xsCreation* creation = &_creation;
@@ -124,6 +127,8 @@ int main(int argc, char* argv[])
 		0,
 		NULL,
 		NULL,
+		NULL,
+		0,
 		NULL,
 	};
 	xsMachine* machine;
@@ -242,6 +247,7 @@ int main(int argc, char* argv[])
 			}
 		}
 		else if (option == 4) {
+			fprintf(stderr, "%p\n", machine);
 			xsReplay(machine);
 		}
 		else {
@@ -278,8 +284,8 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
-			xsEndHost(machine);
 			xsRunLoop(machine);
+			xsEndHost(machine);
 			if (argw) {
 				snapshot.stream = fopen(argv[argw], "wb");
 				if (snapshot.stream) {
@@ -343,15 +349,15 @@ void xsBuildAgent(xsMachine* machine)
 	modInstallTextDecoder(the);
 	modInstallTextEncoder(the);
 	modInstallBase64(the);
-	
-	xsResult = xsNewHostFunction(fx_harden, 1);
-	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(xs_lockdown, 0);
-	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(fx_petrify, 1);
-	xsDefine(xsGlobal, xsID("petrify"), xsResult, xsDontEnum);
-	xsResult = xsNewHostFunction(fx_mutabilities, 1);
-	xsDefine(xsGlobal, xsID("mutabilities"), xsResult, xsDontEnum);
+// 	
+// 	xsResult = xsNewHostFunction(fx_harden, 1);
+// 	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(xs_lockdown, 0);
+// 	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(fx_petrify, 1);
+// 	xsDefine(xsGlobal, xsID("petrify"), xsResult, xsDontEnum);
+// 	xsResult = xsNewHostFunction(fx_mutabilities, 1);
+// 	xsDefine(xsGlobal, xsID("mutabilities"), xsResult, xsDontEnum);
 
 	xsEndHost(machine);
 }
@@ -423,6 +429,10 @@ void xsReplay(xsMachine* machine)
 							xsEndHost(machine);
 						}
 						else if (which == 2) {
+// 							xsBeginHost(machine);
+// 							xsCollectGarbage();
+// 							xsEndHost(machine);
+// 							fclose(file);
 							char buffer[1024];
 							char* slash;
 							xsSnapshot snapshot = {
@@ -437,6 +447,8 @@ void xsReplay(xsMachine* machine)
 								NULL,
 								NULL,
 								NULL,
+								0,
+								NULL
 							};
 							length = fread(buffer, 1, length, file);
 							buffer[length] = 0;
@@ -476,6 +488,7 @@ void xs_currentMeterLimit(xsMachine* the)
 
 void xs_gc(xsMachine* the)
 {
+	fprintf(stderr, "gc()\n");
 	xsCollectGarbage();
 }
 
@@ -484,9 +497,33 @@ void xs_issueCommand(xsMachine* the)
 	char path[C_PATH_MAX];
 	FILE* file;
 	size_t length;
+	void* data;
+	size_t argLength;
+	void* argData;
+	
 	sprintf(path, "%05d-command.dat", gxStep);
-	fprintf(stderr, "### %s %.*s\n", path, xsGetArrayBufferLength(xsArg(0)), (char*)xsToArrayBuffer(xsArg(0)));
 	gxStep++;
+	
+	file = fopen(path, "rb");
+	if (!file) xsUnknownError("cannot open %s", path);
+	fseek(file, 0, SEEK_END);
+	length = ftell(file);
+	fseek(file, 0, SEEK_SET);
+	data = c_malloc(length);
+	length = fread(data, 1, length, file);	
+	fclose(file);
+	
+	argLength = xsGetArrayBufferLength(xsArg(0));
+	argData = xsToArrayBuffer(xsArg(0));
+	
+	if ((length != argLength) || c_memcmp(data, argData, length)) {
+		fprintf(stderr, "### %s %.*s\n", path, (int)argLength, (char*)argData);
+// 		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
+	}
+	else
+		fprintf(stderr, "### %s\n", path);
+	c_free(data);
+	
 	sprintf(path, "%05d-reply.dat", gxStep);
 	fprintf(stderr, "### %s\n", path);
 	gxStep++;
@@ -496,7 +533,8 @@ void xs_issueCommand(xsMachine* the)
 	length = ftell(file);
 	fseek(file, 0, SEEK_SET);
 	xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-	length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
+	data = xsToArrayBuffer(xsResult);
+	length = fread(data, 1, length, file);	
 	fclose(file);
 }
 
