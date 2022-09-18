@@ -520,6 +520,12 @@ int main(int argc, char* argv[])
 					}
 				}
 				break;
+			case '/':
+			case '.':
+			case '!':
+				fprintf(stderr, "Unexpected command %c\n", command);
+			  c_exit(E_IO_ERROR);
+				break;
 			default:
 				done = 1;
 				break;
@@ -818,8 +824,12 @@ static void xs_issueCommand(xsMachine *the)
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
 #endif
-	// TODO: can we avoid a copy?
-	xsResult = xsArrayBuffer(buf, len);
+	char command = *buf;
+	if (len == 0 || command != '/') {
+		xsUnknownError("Received unexpected command reply.");
+	}
+
+	xsResult = xsArrayBuffer(buf + 1, len - 1);
 	free(buf);
 }
 
