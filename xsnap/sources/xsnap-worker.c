@@ -372,6 +372,8 @@ int main(int argc, char* argv[])
 			case '?':
 			case 'e':
 				xsBeginCrank(machine, gxCrankMeteringLimit);
+				char* response = NULL;
+				xsIntegerValue responseLength = 0;
 				error = 0;
 				xsBeginHost(machine);
 				{
@@ -405,12 +407,9 @@ int main(int argc, char* argv[])
 				meterIndex = xsEndCrank(machine);
 				{
 					if (error) {
-						xsStringValue message = xsToString(xsVar(1));
-						writeError = fxWriteNetString(toParent, "!", message, strlen(message));
-						// fprintf(stderr, "error: %d, writeError: %d %s\n", error, writeError, message);
+						response = xsToString(xsVar(1));
+						responseLength = strlen(response);
 					} else {
-						char* response = NULL;
-						xsIntegerValue responseLength = 0;
 						// fprintf(stderr, "report: %d %s\n", xsTypeOf(report), xsToString(report));
 						xsTry {
 							if (xsTypeOf(xsVar(1)) == xsReferenceType && xsHas(xsVar(1), xsID("result"))) {
@@ -433,11 +432,16 @@ int main(int argc, char* argv[])
 								xsException = xsUndefined;
 							}
 						}
-						// fprintf(stderr, "response of %d bytes\n", responseLength);
-						writeError = fxWriteOkay(toParent, meterIndex, the, response, responseLength);
 					}
 				}
 				xsEndHost(machine);
+				if (error) {
+						writeError = fxWriteNetString(toParent, "!", response, responseLength);
+						// fprintf(stderr, "error: %d, writeError: %d %s\n", error, writeError, response);
+				} else {
+						// fprintf(stderr, "response of %d bytes\n", responseLength);
+						writeError = fxWriteOkay(toParent, meterIndex, machine, response, responseLength);
+				}
 				if (writeError != 0) {
 					fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
 					c_exit(E_IO_ERROR);

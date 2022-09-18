@@ -364,7 +364,7 @@ void fxRunLoop(txMachine* the)
 			}
 		}
 	}
-	// fxCheckUnhandledRejections(the, 1);
+	fxCheckUnhandledRejections(the, 1);
 }
 
 void fxFulfillModuleFile(txMachine* the)
