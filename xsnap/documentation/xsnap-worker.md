@@ -48,7 +48,8 @@ Once started, the process listens on file descriptor 3, and will write to file d
   * for both `s` and `m`, an error writes a terse `!` to fd4, and success writes `.${meterObj}\1` (the same success response as for `e`/`?` but with an empty message: just the metering data)
   * both `s` and `m` are holdovers from `xsnap.c`, and should be considered deprecated in `xsnap-worker.c`
 * `w`: the body is treated as a filename. A GC collection is triggered, and then the JS engine state snapshot (the entire virtual machine state: heap, stack, symbol table, etc) is written to the given filename. Then execution continues normally. The response is `!` or `.${meterObj}\1` as with `s`/`m`
-* all other command characters cause the worker to exit
+* `q`: causes the worker to exit gently, with an exit code of `E_SUCCESS` (0)
+* all other command characters cause the worker to exit noisily, with a messge to stderr about the unrecognized command, and an exit code of `E_IO_ERROR` (2)
 
 If at any point the computation exceeds one of the following limits, the process will exit with a non-zero (and non-negative) exit code:
 
@@ -56,3 +57,7 @@ If at any point the computation exceeds one of the following limits, the process
 * `E_STACK_OVERFLOW` (12): when the JS stack exceeds the configured limit (hard-coded in `xsnap-worker.c` as `stackCount` to 4096). Also, at least for now, when the native stack exceeds a limit.
 * `E_NO_MORE_KEYS` (16): when the number of "keys" (unique property names) exceeds the limit (hard-coded in `xsnap-worker.c` as `keyCount` to 32000)
 * `E_TOO_MUCH_COMPUTATION` (17): when the computation exceeds the `-l` computron limit
+
+The other possible exit codes are:
+* `E_SUCCESS` (0): when a `q` command is received
+* `E_IO_ERROR` (2): when an unrecognized command is received

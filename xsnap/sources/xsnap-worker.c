@@ -520,14 +520,20 @@ int main(int argc, char* argv[])
 					}
 				}
 				break;
-			case '/':
-			case '.':
-			case '!':
-				fprintf(stderr, "Unexpected command %c\n", command);
-			  c_exit(E_IO_ERROR);
-				break;
-			default:
+			case 'q':
 				done = 1;
+				break;
+
+			// We reserve some prefix characters to avoid/detect/debug confusion,
+			// all of which are explicitly rejected, just like unknown commands. Do not
+			// reuse these for new commands.
+			case '/': // downstream response to upstream issueCommand()
+			case '.': // upstream good response to downstream execute/eval
+			case '!': // upstream error response to downstream execute/eval
+			default:
+				// note: the nsbuf we receive from fxReadNetString is null-terminated
+				fprintf(stderr, "Unexpected prefix '%c' in command '%s'\n", command, nsbuf);
+				c_exit(E_IO_ERROR);
 				break;
 			}
 			free(nsbuf);
