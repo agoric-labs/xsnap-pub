@@ -22,7 +22,11 @@ Once started, the process listens on file descriptor 3, and will write to file d
 * `?` (command): feed the body (as a JS `String`) to the registered `handleCommand(body)` handler
   * for both `e` and `?`, execution continues until both the `setImmediate` and the ready-promise-callback queues are empty (the vat is "quiescent")
   * if evaluation/`handleCommand()` throws an error (and the evaluated code does not catch it), the worker writes `!${toString(err)}` to fd4
-  * if successful, the result should be an ArrayBuffer, or an object with a `.result` property that is an ArrayBuffer
+  * while running, if the application calls `globalThis.issueCommand(query)` (where `query` is an ArrayBuffer), the worker will write a netstring to file descriptor 4, whose payload is a single `?` character followed by contents of `query`
+    * the application will then do a blocking read on file descriptor 3 until a complete netstring is received
+    * the payload of this response must start with a single `/` character
+    * the remainder of the payload will returned (as an ArrayBuffer) to the caller of `issueCommand()`
+  * if successful, the evaluation/`handleCommand()` result should be an ArrayBuffer, or an object with a `.result` property that is an ArrayBuffer
     * anything else will yield an empty response string
   * the worker writes a netstring with the following body to fd4:
     * `.${meterObj}\1${result}`
