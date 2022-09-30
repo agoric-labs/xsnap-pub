@@ -93,6 +93,11 @@ xsCallback gxSnapshotCallbacks[mxSnapshotCallbackCount] = {
 	// fx_clearTimer,
 };
 
+typedef struct {
+	FILE *file;
+	int size;
+} SnapshotStream;
+
 static int fxSnapshotRead(void* stream, void* address, size_t size)
 {
 	return (fread(address, size, 1, stream) == 1) ? 0 : errno;
@@ -100,7 +105,10 @@ static int fxSnapshotRead(void* stream, void* address, size_t size)
 
 static int fxSnapshotWrite(void* stream, void* address, size_t size)
 {
-	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
+	SnapshotStream* snapshotStream = stream;
+	size_t written = fwrite(address, size, 1, snapshotStream->file);
+	snapshotStream->size += size * written;
+	return (written == 1) ? 0 : errno;
 }
 
 #if mxInstrument
@@ -528,10 +536,14 @@ int main(int argc, char* argv[])
 				fxTestRecord(mxTestRecordParam, nsbuf + 1, nslen - 1);
 			#endif
 				path = nsbuf + 1;
-				snapshot.stream = fopen(path, "wb");
-				if (snapshot.stream) {
+				SnapshotStream stream;
+				stream.file = fopen(path, "wb");
+				stream.size = 0;
+				if (stream.file) {
+					snapshot.stream = &stream;
 					fxWriteSnapshot(machine, &snapshot);
-					fclose(snapshot.stream);
+					snapshot.stream = NULL;
+					fclose(stream.file);
 				}
 				else
 					snapshot.error = errno;
@@ -541,7 +553,10 @@ int main(int argc, char* argv[])
 					c_exit(E_IO_ERROR);
 				}
 				if (snapshot.error == 0) {
-					int writeError = fxWriteOkay(toParent, meterIndex, machine, "", 0);
+					// Allows us to format up to 999,999,999,999 bytes (1TiB - 1)
+					char fsize[13];
+					int fsizeLength = snprintf(fsize, sizeof(fsize), "%d", stream.size);
+					int writeError = fxWriteOkay(toParent, meterIndex, machine, fsize, fsizeLength);
 					if (writeError != 0) {
 						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
 						c_exit(E_IO_ERROR);
@@ -810,7 +825,7 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 	char numeral64[] = "12345678901234567890"; // big enough for 64bit numeral
 	char prefix[8 + sizeof fmt + 8 * sizeof numeral64 + sizeof timestampBuffer];
 	// Prepend the meter usage to the reply.
-	snprintf(prefix, sizeof(prefix) - 1, fmt,
+	snprintf(prefix, sizeof(prefix), fmt,
 			 fxGetCurrentHeapCount(the),
 			 meterIndex, the->allocatedSpace, tsbuf);
 	return fxWriteNetString(outStream, prefix, buf, length);
