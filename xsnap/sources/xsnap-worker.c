@@ -102,6 +102,19 @@ static int fxSnapshotWrite(void* stream, void* address, size_t size)
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
 
+#if mxInstrument
+#define xsnapInstrumentCount 1
+static xsStringValue xsnapInstrumentNames[xsnapInstrumentCount] = {
+	"Metering",
+};
+static xsStringValue xsnapInstrumentUnits[xsnapInstrumentCount] = {
+	" times",
+};
+static xsIntegerValue xsnapInstrumentValues[xsnapInstrumentCount] = {
+	0,
+};
+#endif
+
 #if mxMetering
 #define xsBeginCrank(_THE, _LIMIT) \
 	(xsSetCurrentMeter(_THE, 0), \
@@ -182,7 +195,7 @@ static char *renderTimestamps() {
 		// final \0". It writes at most size-1 characters, then writes
 		// the trailing \0.
 		wrote = snprintf(p, size, "%lu.%06lu",
-						 timestamps[i].tv_sec, timestamps[i].tv_usec);
+						 timestamps[i].tv_sec, (unsigned long)timestamps[i].tv_usec);
 		p += wrote;
 		size -= wrote;
 		if (size < 2) { // 2 is enough for "]\0", but 1 is not
@@ -338,10 +351,28 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "fdopen(4) to parent failed\n");
 		c_exit(E_IO_ERROR);
 	}
+#if mxInstrument
+	xsDescribeInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentNames, xsnapInstrumentUnits);
+#endif
 	xsBeginMetering(machine, fxMeteringCallback, interval);
 	{
+        fd_set rfds;
 		char done = 0;
 		while (!done) {
+			FD_ZERO(&rfds);
+			FD_SET(3, &rfds);
+			FD_SET(5, &rfds);
+			if (select(6, &rfds, NULL, NULL, NULL) >= 0) {
+				if (FD_ISSET(5, &rfds))
+					xsRunDebugger(machine);
+				if (!FD_ISSET(3, &rfds))
+					continue;
+			}
+			else {
+				fprintf(stderr, "select failed\n");
+				error = E_IO_ERROR;
+				break;
+			}
 			// By default, use the infinite meter.
 			gxCurrentMeter = 0;
 
@@ -350,7 +381,7 @@ int main(int argc, char* argv[])
 			size_t nslen;
 			resetTimestamps();
 			int readError = fxReadNetString(fromParent, &nsbuf, &nslen);
-			recordTimestamp(); // after delivery received from parent
+			recordTimestamp(); // delivery received from parent
 			int writeError = 0;
 
 			if (readError != 0) {
@@ -362,7 +393,7 @@ int main(int argc, char* argv[])
 				}
 			}
 			char command = *nsbuf;
-			// fprintf(stderr, "command: len %d %c arg: %s\n", nslen, command, nsbuf + 1);
+// 			fprintf(stderr, "command: len %d %c arg: %s\n", nslen, command, nsbuf + 1);
 			switch(command) {
 			case 'R': // isReady
 				fxWriteNetString(toParent, ".", "", 0);
@@ -379,7 +410,6 @@ int main(int argc, char* argv[])
 							#if XSNAP_TEST_RECORD
 								fxTestRecord(mxTestRecordJSON | mxTestRecordParam, nsbuf + 1, nslen - 1);
 							#endif
-							// TODO: can we avoid a copy?
 							xsVar(0) = xsArrayBuffer(nsbuf + 1, nslen - 1);
 							xsVar(1) = xsCall1(xsGlobal, xsID("handleCommand"), xsVar(0));
 						} else {
@@ -519,6 +549,10 @@ int main(int argc, char* argv[])
 				break;
 			}
 			free(nsbuf);
+#if mxInstrument
+			xsnapInstrumentValues[0] = (xsIntegerValue)meterIndex;
+			xsSampleInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentValues);
+#endif
 		}
 		xsBeginHost(machine);
 		{
@@ -790,16 +824,24 @@ static void xs_issueCommand(xsMachine *the)
 		xsTypeError("expected ArrayBuffer");
 	}
 
-	size_t length = xsGetArrayBufferLength(xsArg(0));
-	char* buf = xsToArrayBuffer(xsArg(0));
-  
-	recordTimestamp(); // before sending command to parent
+	size_t length;
+	char* buf = NULL;
+	length = xsGetArrayBufferLength(xsArg(0));
 
+	buf = malloc(length);
+	if (!buf) {
+		fxAbort(the, xsNotEnoughMemoryExit);
+	}
+
+	xsGetArrayBufferData(xsArg(0), 0, buf, length);
 	int writeError = fxWriteNetString(toParent, "?", buf, length);
+
+	free(buf);
 
 	if (writeError != 0) {
 		xsUnknownError(fxWriteNetStringError(writeError));
 	}
+	recordTimestamp(); // command sent to parent
 
 	// read netstring
 	size_t len;
@@ -807,12 +849,11 @@ static void xs_issueCommand(xsMachine *the)
 	if (readError != 0) {
 		xsUnknownError(fxReadNetStringError(readError));
 	}
-	recordTimestamp(); // after command-result received from parent
+	recordTimestamp(); // command-result received from parent
 
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
 #endif
-	// TODO: can we avoid a copy?
 	xsResult = xsArrayBuffer(buf, len);
 	free(buf);
 }

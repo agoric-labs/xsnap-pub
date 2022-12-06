@@ -278,7 +278,10 @@ void fxFreeSlots(txMachine* the, void* theSlots)
 void fxCreateMachinePlatform(txMachine* the)
 {
 #ifdef mxDebug
+#ifdef mxInstrument
+#else
 	the->connection = mxNoSocket;
+#endif
 #endif
 	// Original 10x strategy:
 	// SLOGFILE=out.slog agoric start local-chain
@@ -300,13 +303,21 @@ void fxQueuePromiseJobs(txMachine* the)
 	the->promiseJobs = 1;
 }
 
+void fxRunDebugger(txMachine* the)
+{
+#ifdef mxDebug
+	fxDebugCommand(the);
+#endif
+}
+
 void fxRunLoop(txMachine* the)
 {
 	c_timeval tv;
 	txNumber when;
 	txJob* job;
 	txJob** address;
-	fxEndJob(the);
+	// Comment next line to make snapshots consistent again.
+// 	fxEndJob(the);
 	for (;;) {
 		while (the->promiseJobs) {
 			while (the->promiseJobs) {
@@ -385,8 +396,8 @@ void fxRunModuleFile(txMachine* the, txString path)
 	mxDub();
 	fxGetID(the, mxID(_then));
 	mxCall();
-	fxNewHostFunction(the, fxFulfillModuleFile, 1, XS_NO_ID);
-	fxNewHostFunction(the, fxRejectModuleFile, 1, XS_NO_ID);
+	fxNewHostFunction(the, fxFulfillModuleFile, 1, XS_NO_ID, XS_NO_ID);
+	fxNewHostFunction(the, fxRejectModuleFile, 1, XS_NO_ID, XS_NO_ID);
 	mxRunCount(2);
 	mxPop();
 }
@@ -418,7 +429,8 @@ txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
 	if (dot) {
 		if (moduleID == XS_NO_ID)
 			return XS_NO_ID;
-		c_strcpy(path, fxGetKeyName(the, moduleID));
+		c_strncpy(path, fxGetKeyName(the, moduleID), C_PATH_MAX - 1);
+		path[C_PATH_MAX - 1] = 0;
 		slash = c_strrchr(path, mxSeparator);
 		if (!slash)
 			return XS_NO_ID;
@@ -457,7 +469,8 @@ void fxLoadModule(txMachine* the, txSlot* module, txID moduleID)
 #else
 	txUnsigned flags = 0;
 #endif
-	c_strcpy(path, fxGetKeyName(the, moduleID));
+	c_strncpy(path, fxGetKeyName(the, moduleID), C_PATH_MAX - 1);
+	path[C_PATH_MAX - 1] = 0;
 	if (c_realpath(path, real)) {
 		script = fxLoadScript(the, real, flags);
 		if (script)
@@ -514,6 +527,54 @@ txScript* fxLoadScript(txMachine* the, txString path, txUnsigned flags)
 
 #ifdef mxDebug
 
+#ifdef mxInstrument
+
+void fxConnect(txMachine* the)
+{
+}
+
+void fxDisconnect(txMachine* the)
+{
+}
+
+txBoolean fxIsConnected(txMachine* the)
+{
+	return 1;
+}
+
+txBoolean fxIsReadable(txMachine* the)
+{
+	return 0;
+}
+
+void fxReceive(txMachine* the)
+{
+	ssize_t count;
+again:
+	count = read(5, the->debugBuffer, sizeof(the->debugBuffer) - 1);
+	if (count < 0) {
+		if (errno == EINTR)
+			goto again;
+		the->debugOffset = 0;
+	}
+	else
+		the->debugOffset = count;
+	the->debugBuffer[the->debugOffset] = 0;
+}
+
+void fxSend(txMachine* the, txBoolean more)
+{
+	ssize_t count;
+again:
+	count = write(6, the->echoBuffer, the->echoOffset);
+	if (count < 0) {
+		if (errno == EINTR)
+			goto again;
+	}
+}
+
+#else
+
 void fxConnect(txMachine* the)
 {
 	char name[256];
@@ -537,8 +598,8 @@ void fxConnect(txMachine* the)
 		}
 	}
 	else {
-		// Require XSBUG_HOST to be set for debugging.
-		return;
+		strcpy(name, "localhost");
+		port = 5002;
 	}
 	memset(&address, 0, sizeof(address));
   	address.sin_family = AF_INET;
@@ -692,6 +753,8 @@ void fxSend(txMachine* the, txBoolean more)
 	}
 }
 
+#endif /* mxInstrument */
+
 #endif /* mxDebug */
 
 void fxVersion(txString theBuffer, txSize theSize)
@@ -738,6 +801,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 {
 	Atom atom;
 	txByte byte;
+	txID profileID;
 	txCreation creation;
 	Atom blockAtom;
 	txByte* block = C_NULL;
@@ -785,6 +849,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
 		atom.atomSize = ntohl(atom.atomSize) - 8;
 		mxThrowIf((*snapshot->read)(snapshot->stream, &creation, sizeof(txCreation)));
+		mxThrowIf((*snapshot->read)(snapshot->stream, &profileID, sizeof(txID)));
 		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
 		fprintf(stderr, "\tinitialChunkSize: %d\n", creation.initialChunkSize);
 		fprintf(stderr, "\tincrementalChunkSize: %d\n", creation.incrementalChunkSize);
@@ -797,6 +862,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		fprintf(stderr, "\tparserBufferSize: %d\n", creation.parserBufferSize);
 		fprintf(stderr, "\tparserTableModulo: %d\n", creation.parserTableModulo);
 		fprintf(stderr, "\tstaticSize: %d\n", creation.staticSize);
+		fprintf(stderr, "\tprofileID: %d\n", profileID);
 
 		mxThrowIf((*snapshot->read)(snapshot->stream, &blockAtom, sizeof(Atom)));
 		blockAtom.atomSize = ntohl(blockAtom.atomSize) - 8;

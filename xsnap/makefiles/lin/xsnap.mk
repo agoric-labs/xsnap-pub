@@ -25,6 +25,7 @@ C_OPTIONS = \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxParse=1 \
+	-DmxProfile=1 \
 	-DmxRun=1 \
 	-DmxSloppy=1 \
 	-DmxSnapshot=1 \
@@ -51,7 +52,7 @@ ifeq ($(XSNAP_RANDOM_INIT),1)
 	LIBRARIES += -lbsd
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
- 
+
 LINK_OPTIONS = -rdynamic
 
 OBJECTS = \

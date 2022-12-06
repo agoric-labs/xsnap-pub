@@ -119,9 +119,7 @@ The `moduleMap` parameter is an object that initializes the **module map** of th
 
 The `Compartment` constructor copies the `moduleMap` properties using the same behavior as `Object.assign`.
 
-A compartment cannot acces module descriptors or module specifiers provided by
-the module map. A compartment can only access module namespaces that will be
-loaded and initialized based on such module descriptors or module specifiers.
+A compartment cannot access module records or module specifiers provided by the module map. A compartment can only access module namespaces that will be loaded and initialized based on such module records or module specifiers.
 
 #### module namespaces
 
