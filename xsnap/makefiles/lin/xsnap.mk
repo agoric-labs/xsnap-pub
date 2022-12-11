@@ -20,12 +20,17 @@ TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
 
 LINK_OPTIONS = -rdynamic
 
+cc-name = $(shell $(CC) -v 2>&1 | grep -q "clang version" && echo clang || echo gcc)
+
 C_OPTIONS = \
 	-fno-common \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
+	-DmxDebug=1 \
+	-DmxNoConsole=1 \
+	-DmxBoundsCheck=1 \
 	-DmxParse=1 \
 	-DmxRun=1 \
 	-DmxSloppy=1 \
@@ -42,10 +47,13 @@ C_OPTIONS += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	C_OPTIONS += -g -O1 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter -fno-omit-frame-pointer -fno-optimize-sibling-calls
+	ifeq ($(cc-name),gcc)
+  	C_OPTIONS += -fno-inline-functions-called-once
+	endif
 	ifeq ($(SANITIZER), memory)
-		C_OPTIONS += -fsanitize=memory
-		LINK_OPTIONS += -fsanitize=memory
+		C_OPTIONS += -DmxPoisonSlots=1 -fsanitize=memory -fsanitize-recover=all -mllvm -msan-keep-going
+		LINK_OPTIONS += -fsanitize=memory -fsanitize-recover=all
 		# add origin tracking, it adds additional perf cost on top of msan
 		ifdef MSAN_TRACK_ORIGINS
 			C_OPTIONS += -fsanitize-memory-track-origins
