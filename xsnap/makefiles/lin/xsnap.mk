@@ -18,6 +18,8 @@ PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
 TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
 
+LINK_OPTIONS = -rdynamic
+
 C_OPTIONS = \
 	-fno-common \
 	-DINCLUDE_XSPLATFORM \
@@ -40,7 +42,8 @@ C_OPTIONS += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter -fsanitize=memory -fsanitize-memory-track-origins
+	LINK_OPTIONS += -fsanitize=memory
 else
 	C_OPTIONS += -DmxBoundsCheck=1 -O3
 endif
@@ -51,8 +54,6 @@ ifeq ($(XSNAP_RANDOM_INIT),1)
 	LIBRARIES += -lbsd
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
-
-LINK_OPTIONS = -rdynamic
 
 OBJECTS = \
 	$(TMP_DIR)/xsAll.o \
