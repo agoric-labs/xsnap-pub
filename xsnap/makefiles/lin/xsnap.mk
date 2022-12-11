@@ -42,8 +42,15 @@ C_OPTIONS += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter -fsanitize=memory -fsanitize-memory-track-origins
-	LINK_OPTIONS += -fsanitize=memory
+	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	ifeq ($(SANITIZER), memory)
+		C_OPTIONS += -fsanitize=memory
+		LINK_OPTIONS += -fsanitize=memory
+		# add origin tracking, it adds additional perf cost on top of msan
+		ifdef MSAN_TRACK_ORIGINS
+			C_OPTIONS += -fsanitize-memory-track-origins
+		endif
+	endif
 else
 	C_OPTIONS += -DmxBoundsCheck=1 -O3
 endif
