@@ -36,6 +36,7 @@ C_OPTIONS = \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
+	-DmxInstrument=1 \
 	-DmxNoConsole=1 \
 	-DmxBoundsCheck=1 \
 	-DmxParse=1 \

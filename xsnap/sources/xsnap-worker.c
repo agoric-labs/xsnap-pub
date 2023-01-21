@@ -102,6 +102,19 @@ static int fxSnapshotWrite(void* stream, void* address, size_t size)
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
 
+#if mxInstrument
+#define xsnapInstrumentCount 1
+static xsStringValue xsnapInstrumentNames[xsnapInstrumentCount] = {
+	"Metering",
+};
+static xsStringValue xsnapInstrumentUnits[xsnapInstrumentCount] = {
+	" times",
+};
+static xsIntegerValue xsnapInstrumentValues[xsnapInstrumentCount] = {
+	0,
+};
+#endif
+
 #if mxMetering
 #define xsBeginCrank(_THE, _LIMIT) \
 	(xsSetCurrentMeter(_THE, 0), \
@@ -340,10 +353,28 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "fdopen(4) to parent failed\n");
 		c_exit(E_IO_ERROR);
 	}
+#if mxInstrument
+	xsDescribeInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentNames, xsnapInstrumentUnits);
+#endif
 	xsBeginMetering(machine, fxMeteringCallback, interval);
 	{
+		fd_set rfds;
 		char done = 0;
 		while (!done) {
+			FD_ZERO(&rfds);
+			FD_SET(3, &rfds);
+			FD_SET(5, &rfds);
+			if (select(6, &rfds, NULL, NULL, NULL) >= 0) {
+				if (FD_ISSET(5, &rfds))
+					xsRunDebugger(machine);
+				if (!FD_ISSET(3, &rfds))
+					continue;
+			}
+			else {
+				fprintf(stderr, "select failed\n");
+				error = E_IO_ERROR;
+				break;
+			}
 			// By default, use the infinite meter.
 			gxCurrentMeter = 0;
 
@@ -537,6 +568,10 @@ int main(int argc, char* argv[])
 				break;
 			}
 			free(nsbuf);
+#if mxInstrument
+			xsnapInstrumentValues[0] = (xsIntegerValue)meterIndex;
+			xsSampleInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentValues);
+#endif
 		}
 		xsBeginHost(machine);
 		{

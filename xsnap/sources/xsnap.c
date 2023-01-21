@@ -97,12 +97,14 @@ int main(int argc, char* argv[])
 {
 	int argi;
 	int argd = 0;
+	int argp = 0;
 	int argr = 0;
 	int argw = 0;
 	int error = 0;
 	int interval = 0;
 	int option = 0;
 	int parserBufferSize = 8192 * 1024;
+	int profiling = 0;
 	xsCreation _creation = {
 		32 * 1024 * 1024,	/* initialChunkSize */
 		4 * 1024 * 1024,	/* incrementalChunkSize */
@@ -176,7 +178,15 @@ int main(int argc, char* argv[])
 		}
 		else if (!strcmp(argv[argi], "-m"))
 			option = 2;
-		else if (!strcmp(argv[argi], "-p"))
+		else if (!strcmp(argv[argi], "-p")) {
+			profiling = 1;
+			argi++;
+			if ((argi < argc) && (argv[argi][0] != '-'))
+				argp = argi;
+			else
+				argi--;
+		}
+		else if (!strcmp(argv[argi], "-q"))
 			gxMeteringPrint = 1;
 		else if (!strcmp(argv[argi], "-r")) {
 			argi++;
@@ -231,6 +241,8 @@ int main(int argc, char* argv[])
 		machine = xsCreateMachine(creation, "xsnap", NULL);
 		xsBuildAgent(machine);
 	}
+	if (profiling)
+		fxStartProfiling(machine);
 	xsBeginMetering(machine, xsMeteringCallback, interval);
 	{
 		if (option == 5) {
@@ -264,6 +276,8 @@ int main(int argc, char* argv[])
 						continue;
 					}
 					if (argv[argi][0] == '-')
+						continue;
+					if (argi == argp)
 						continue;
 					if (argi == argr)
 						continue;
@@ -301,6 +315,17 @@ int main(int argc, char* argv[])
 		}
 	}
 	xsEndMetering(machine);
+	if (profiling) {
+		if (argp) {
+			FILE* stream = fopen(argv[argp], "w");
+			if (stream)
+				fxStopProfiling(machine, stream);
+			else
+				fprintf(stderr, "cannot write profile %s: %s\n", argv[argp], strerror(errno));
+		}
+		else
+			fxStopProfiling(machine, C_NULL);
+	}
 	if (machine->abortStatus)
 		error = machine->abortStatus;
 	xsDeleteMachine(machine);

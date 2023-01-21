@@ -278,7 +278,10 @@ void fxFreeSlots(txMachine* the, void* theSlots)
 void fxCreateMachinePlatform(txMachine* the)
 {
 #ifdef mxDebug
+#ifdef mxInstrument
+#else
 	the->connection = mxNoSocket;
+#endif
 #endif
 	// Original 10x strategy:
 	// SLOGFILE=out.slog agoric start local-chain
@@ -298,6 +301,13 @@ void fxDeleteMachinePlatform(txMachine* the)
 void fxQueuePromiseJobs(txMachine* the)
 {
 	the->promiseJobs = 1;
+}
+
+void fxRunDebugger(txMachine* the)
+{
+#ifdef mxDebug
+	fxDebugCommand(the);
+#endif
 }
 
 void fxRunLoop(txMachine* the)
@@ -516,6 +526,54 @@ txScript* fxLoadScript(txMachine* the, txString path, txUnsigned flags)
 
 #ifdef mxDebug
 
+#ifdef mxInstrument
+
+void fxConnect(txMachine* the)
+{
+}
+
+void fxDisconnect(txMachine* the)
+{
+}
+
+txBoolean fxIsConnected(txMachine* the)
+{
+	return 1;
+}
+
+txBoolean fxIsReadable(txMachine* the)
+{
+	return 0;
+}
+
+void fxReceive(txMachine* the)
+{
+	ssize_t count;
+again:
+	count = read(5, the->debugBuffer, sizeof(the->debugBuffer) - 1);
+	if (count < 0) {
+		if (errno == EINTR)
+			goto again;
+		the->debugOffset = 0;
+	}
+	else
+		the->debugOffset = count;
+	the->debugBuffer[the->debugOffset] = 0;
+}
+
+void fxSend(txMachine* the, txBoolean more)
+{
+	ssize_t count;
+again:
+	count = write(6, the->echoBuffer, the->echoOffset);
+	if (count < 0) {
+		if (errno == EINTR)
+			goto again;
+	}
+}
+
+#else
+
 void fxConnect(txMachine* the)
 {
 	char name[256];
@@ -541,6 +599,8 @@ void fxConnect(txMachine* the)
 	else {
 		// Require XSBUG_HOST to be set for debugging.
 		return;
+		// strcpy(name, "localhost");
+		// port = 5002;
 	}
 	memset(&address, 0, sizeof(address));
   	address.sin_family = AF_INET;
@@ -693,6 +753,8 @@ void fxSend(txMachine* the, txBoolean more)
 #endif
 	}
 }
+
+#endif /* mxInstrument */
 
 #endif /* mxDebug */
 

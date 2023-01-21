@@ -69,6 +69,17 @@
 	#define mxUseGCCAtomics 1
 	#define mxUsePOSIXThreads 1
 #endif
+#ifdef mxInstrument
+#define mxMachinePlatform \
+	int abortStatus; \
+	int promiseJobs; \
+	void* timerJobs; \
+	void* waiterCondition; \
+	void* waiterData; \
+	void* waiterLink; \
+	size_t allocationLimit; \
+	size_t allocatedSpace;
+#else
 #define mxMachinePlatform \
 	txSocket connection; \
 	int abortStatus; \
@@ -79,6 +90,7 @@
 	void* waiterLink; \
 	size_t allocationLimit; \
 	size_t allocatedSpace;
+#endif
 
 #define mxUseDefaultBuildKeys 1
 #define mxUseDefaultParseScript 1
