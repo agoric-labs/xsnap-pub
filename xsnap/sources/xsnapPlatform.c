@@ -306,14 +306,14 @@ void fxRunLoop(txMachine* the)
 	txNumber when;
 	txJob* job;
 	txJob** address;
-	fxEndJob(the);
 	for (;;) {
 		while (the->promiseJobs) {
-			while (the->promiseJobs) {
-				the->promiseJobs = 0;
-				fxRunPromiseJobs(the);
-			}
-			fxEndJob(the);
+			the->promiseJobs = 0;
+			fxRunPromiseJobs(the);
+		}
+		fxEndJob(the);
+		if (the->promiseJobs) {
+			continue;
 		}
 		c_gettimeofday(&tv, NULL);
 		when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
