@@ -385,8 +385,8 @@ void fxRunModuleFile(txMachine* the, txString path)
 	mxDub();
 	fxGetID(the, mxID(_then));
 	mxCall();
-	fxNewHostFunction(the, fxFulfillModuleFile, 1, XS_NO_ID);
-	fxNewHostFunction(the, fxRejectModuleFile, 1, XS_NO_ID);
+	fxNewHostFunction(the, fxFulfillModuleFile, 1, XS_NO_ID, XS_NO_ID);
+	fxNewHostFunction(the, fxRejectModuleFile, 1, XS_NO_ID, XS_NO_ID);
 	mxRunCount(2);
 	mxPop();
 }
@@ -740,6 +740,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 {
 	Atom atom;
 	txByte byte;
+	txID profileID;
 	txCreation creation;
 	Atom blockAtom;
 	txByte* block = C_NULL;
@@ -787,6 +788,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		mxThrowIf((*snapshot->read)(snapshot->stream, &atom, sizeof(Atom)));
 		atom.atomSize = ntohl(atom.atomSize) - 8;
 		mxThrowIf((*snapshot->read)(snapshot->stream, &creation, sizeof(txCreation)));
+		mxThrowIf((*snapshot->read)(snapshot->stream, &profileID, sizeof(txID)));
 		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
 		fprintf(stderr, "\tinitialChunkSize: %d\n", creation.initialChunkSize);
 		fprintf(stderr, "\tincrementalChunkSize: %d\n", creation.incrementalChunkSize);
@@ -799,6 +801,7 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		fprintf(stderr, "\tparserBufferSize: %d\n", creation.parserBufferSize);
 		fprintf(stderr, "\tparserTableModulo: %d\n", creation.parserTableModulo);
 		fprintf(stderr, "\tstaticSize: %d\n", creation.staticSize);
+		fprintf(stderr, "\tprofileID: %d\n", profileID);
 
 		mxThrowIf((*snapshot->read)(snapshot->stream, &blockAtom, sizeof(Atom)));
 		blockAtom.atomSize = ntohl(blockAtom.atomSize) - 8;
