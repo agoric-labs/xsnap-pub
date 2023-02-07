@@ -361,6 +361,7 @@ int main(int argc, char* argv[])
 		fd_set rfds;
 		char done = 0;
 		while (!done) {
+			#if mxInstrument
 			FD_ZERO(&rfds);
 			FD_SET(3, &rfds);
 			FD_SET(5, &rfds);
@@ -371,10 +372,11 @@ int main(int argc, char* argv[])
 					continue;
 			}
 			else {
-				fprintf(stderr, "select failed\n");
+				fprintf(stderr, "select failed: %s\n", strerror(errno));
 				error = E_IO_ERROR;
 				break;
 			}
+			#endif
 			// By default, use the infinite meter.
 			gxCurrentMeter = 0;
 

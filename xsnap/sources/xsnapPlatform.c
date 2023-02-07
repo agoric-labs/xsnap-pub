@@ -695,7 +695,7 @@ void fxDisconnect(txMachine* the)
 #else
 	if (the->connection >= 0) {
 		close(the->connection);
-		the->connection = -1;
+		the->connection = mxNoSocket;
 	}
 #endif
 }
