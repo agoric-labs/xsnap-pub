@@ -102,6 +102,19 @@ static int fxSnapshotWrite(void* stream, void* address, size_t size)
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
 
+#if mxInstrument
+#define xsnapInstrumentCount 1
+static xsStringValue xsnapInstrumentNames[xsnapInstrumentCount] = {
+	"Metering",
+};
+static xsStringValue xsnapInstrumentUnits[xsnapInstrumentCount] = {
+	" times",
+};
+static xsIntegerValue xsnapInstrumentValues[xsnapInstrumentCount] = {
+	0,
+};
+#endif
+
 #if mxMetering
 #define xsBeginCrank(_THE, _LIMIT) \
 	(xsSetCurrentMeter(_THE, 0), \
@@ -340,10 +353,30 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "fdopen(4) to parent failed\n");
 		c_exit(E_IO_ERROR);
 	}
+#if mxInstrument
+	xsDescribeInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentNames, xsnapInstrumentUnits);
+#endif
 	xsBeginMetering(machine, fxMeteringCallback, interval);
 	{
+		fd_set rfds;
 		char done = 0;
 		while (!done) {
+			#if mxInstrument
+			FD_ZERO(&rfds);
+			FD_SET(3, &rfds);
+			FD_SET(5, &rfds);
+			if (select(6, &rfds, NULL, NULL, NULL) >= 0) {
+				if (FD_ISSET(5, &rfds))
+					xsRunDebugger(machine);
+				if (!FD_ISSET(3, &rfds))
+					continue;
+			}
+			else {
+				fprintf(stderr, "select failed: %s\n", strerror(errno));
+				error = E_IO_ERROR;
+				break;
+			}
+			#endif
 			// By default, use the infinite meter.
 			gxCurrentMeter = 0;
 
@@ -372,6 +405,8 @@ int main(int argc, char* argv[])
 			case '?':
 			case 'e':
 				xsBeginCrank(machine, gxCrankMeteringLimit);
+				char* response = NULL;
+				xsIntegerValue responseLength = 0;
 				error = 0;
 				xsBeginHost(machine);
 				{
@@ -405,12 +440,9 @@ int main(int argc, char* argv[])
 				meterIndex = xsEndCrank(machine);
 				{
 					if (error) {
-						xsStringValue message = xsToString(xsVar(1));
-						writeError = fxWriteNetString(toParent, "!", message, strlen(message));
-						// fprintf(stderr, "error: %d, writeError: %d %s\n", error, writeError, message);
+						response = xsToString(xsVar(1));
+						responseLength = strlen(response);
 					} else {
-						char* response = NULL;
-						xsIntegerValue responseLength = 0;
 						// fprintf(stderr, "report: %d %s\n", xsTypeOf(report), xsToString(report));
 						xsTry {
 							if (xsTypeOf(xsVar(1)) == xsReferenceType && xsHas(xsVar(1), xsID("result"))) {
@@ -433,11 +465,16 @@ int main(int argc, char* argv[])
 								xsException = xsUndefined;
 							}
 						}
-						// fprintf(stderr, "response of %d bytes\n", responseLength);
-						writeError = fxWriteOkay(toParent, meterIndex, the, response, responseLength);
 					}
 				}
 				xsEndHost(machine);
+				if (error) {
+						writeError = fxWriteNetString(toParent, "!", response, responseLength);
+						// fprintf(stderr, "error: %d, writeError: %d %s\n", error, writeError, response);
+				} else {
+						// fprintf(stderr, "response of %d bytes\n", responseLength);
+						writeError = fxWriteOkay(toParent, meterIndex, machine, response, responseLength);
+				}
 				if (writeError != 0) {
 					fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
 					c_exit(E_IO_ERROR);
@@ -516,11 +553,27 @@ int main(int argc, char* argv[])
 					}
 				}
 				break;
-			default:
+			case 'q':
 				done = 1;
+				break;
+
+			// We reserve some prefix characters to avoid/detect/debug confusion,
+			// all of which are explicitly rejected, just like unknown commands. Do not
+			// reuse these for new commands.
+			case '/': // downstream response to upstream issueCommand()
+			case '.': // upstream good response to downstream execute/eval
+			case '!': // upstream error response to downstream execute/eval
+			default:
+				// note: the nsbuf we receive from fxReadNetString is null-terminated
+				fprintf(stderr, "Unexpected prefix '%c' in command '%s'\n", command, nsbuf);
+				c_exit(E_IO_ERROR);
 				break;
 			}
 			free(nsbuf);
+#if mxInstrument
+			xsnapInstrumentValues[0] = (xsIntegerValue)meterIndex;
+			xsSampleInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentValues);
+#endif
 		}
 		xsBeginHost(machine);
 		{
@@ -814,8 +867,12 @@ static void xs_issueCommand(xsMachine *the)
 #if XSNAP_TEST_RECORD
 	fxTestRecord(mxTestRecordJSON | mxTestRecordReply, buf, len);
 #endif
-	// TODO: can we avoid a copy?
-	xsResult = xsArrayBuffer(buf, len);
+	char command = *buf;
+	if (len == 0 || command != '/') {
+		xsUnknownError("Received unexpected command reply.");
+	}
+
+	xsResult = xsArrayBuffer(buf + 1, len - 1);
 	free(buf);
 }
 

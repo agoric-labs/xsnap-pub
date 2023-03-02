@@ -72,6 +72,8 @@ struct xsSnapshotRecord {
 #define xsWriteSnapshot(_THE, _SNAPSHOT) \
 	fxWriteSnapshot(_THE, _SNAPSHOT)
 	
+#define xsRunDebugger(_THE) \
+	fxRunDebugger(_THE)
 #define xsRunModuleFile(_PATH) \
 	fxRunModuleFile(the, _PATH)
 #define xsRunProgramFile(_PATH) \
@@ -86,6 +88,13 @@ struct xsSnapshotRecord {
 	
 #define xsVersion(_BUFFER, _SIZE) \
 	fxVersion(_BUFFER, _SIZE)
+
+#ifdef mxInstrument	
+#define xsDescribeInstrumentation(_THE,_COUNT,_NAMES,_UNITS) \
+	fxDescribeInstrumentation(_THE,_COUNT,_NAMES,_UNITS)
+#define xsSampleInstrumentation(_THE,_COUNT,_VALUES) \
+	fxSampleInstrumentation(_THE,_COUNT,_VALUES)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -106,12 +115,18 @@ mxImport void fxSetCurrentMeter(xsMachine* the, xsUnsignedValue value);
 mxImport xsMachine* fxReadSnapshot(xsSnapshot* snapshot, xsStringValue theName, void* theContext);
 mxImport int fxWriteSnapshot(xsMachine* the, xsSnapshot* snapshot);
 
+mxImport void fxRunDebugger(xsMachine* the);
 mxImport void fxRunModuleFile(xsMachine* the, xsStringValue path);
 mxImport void fxRunProgramFile(xsMachine* the, xsStringValue path);
 mxImport void fxRunLoop(xsMachine* the);
 
 mxImport void fxClearTimer(xsMachine* the);
 mxImport void fxSetTimer(xsMachine* the, xsNumberValue interval, xsBooleanValue repeat);
+
+#ifdef mxInstrument	
+mxImport void fxDescribeInstrumentation(xsMachine* the, xsIntegerValue count, xsStringValue* names, xsStringValue* units);
+mxImport void fxSampleInstrumentation(xsMachine* the, xsIntegerValue count, xsIntegerValue* values);
+#endif
 
 mxImport void fxVersion(xsStringValue theBuffer, xsUnsignedValue theSize);
 
