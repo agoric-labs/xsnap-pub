@@ -54,6 +54,13 @@ LINK_OPTIONS = -rdynamic
 
 ifeq ($(GOAL),debug)
 	C_OPTIONS += -g -O1 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+
+	ifeq ($(SANITIZER), xray)
+		# -fxray-instrumentation-bundle=function-entry
+		C_OPTIONS += -fxray-instrument -fxray-instruction-threshold=1
+		LINK_OPTIONS += -fxray-instrument
+	endif
+
 	ifeq ($(SANITIZER), memory)
 		C_OPTIONS += -fsanitize=memory
 		LINK_OPTIONS += -fsanitize=memory
