@@ -64,12 +64,13 @@ ifeq ($(GOAL),debug)
 		endif
 	endif
 
-	ifeq ($(SANITIZER), address)
+	# sanitizers below are compatible - allow bundling them together
+	ifneq (,$(findstring address,$(SANITIZER)))
 		C_OPTIONS += -fsanitize=address -fsanitize-recover=address
 		LINK_OPTIONS += -fsanitize=address -fsanitize-recover=address
 	endif
 
-	ifeq ($(SANITIZER), undefined)
+	ifneq (,$(findstring undefined,$(SANITIZER)))
 		C_OPTIONS += -fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fsanitize-recover=undefined
 		LINK_OPTIONS += -fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fsanitize-recover=undefined
 	endif
