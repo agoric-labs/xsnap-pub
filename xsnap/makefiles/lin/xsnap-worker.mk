@@ -49,8 +49,38 @@ C_OPTIONS = \
 C_OPTIONS += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
+
+LINK_OPTIONS = -rdynamic
+
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	C_OPTIONS += -g -O1 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+
+	ifeq ($(SANITIZER), xray)
+		# -fxray-instrumentation-bundle=function-entry
+		C_OPTIONS += -fxray-instrument -fxray-instruction-threshold=1
+		LINK_OPTIONS += -fxray-instrument
+	endif
+
+	ifeq ($(SANITIZER), memory)
+		C_OPTIONS += -fsanitize=memory
+		LINK_OPTIONS += -fsanitize=memory
+
+		# add origin tracking, it adds additional perf cost on top of msan
+		ifdef MSAN_TRACK_ORIGINS
+			C_OPTIONS += -fsanitize-memory-track-origins
+		endif
+	endif
+
+	# sanitizers below are compatible - allow bundling them together
+	ifneq (,$(findstring address,$(SANITIZER)))
+		C_OPTIONS += -fsanitize=address -fsanitize-recover=address
+		LINK_OPTIONS += -fsanitize=address -fsanitize-recover=address
+	endif
+
+	ifneq (,$(findstring undefined,$(SANITIZER)))
+		C_OPTIONS += -fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fsanitize-recover=undefined
+		LINK_OPTIONS += -fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fsanitize-recover=undefined
+	endif
 else
 	C_OPTIONS += -O3
 endif
@@ -61,8 +91,6 @@ ifeq ($(XSNAP_RANDOM_INIT),1)
 	LIBRARIES += -lbsd
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
-
-LINK_OPTIONS = -rdynamic
 
 OBJECTS = \
 	$(TMP_DIR)/xsAll.o \
