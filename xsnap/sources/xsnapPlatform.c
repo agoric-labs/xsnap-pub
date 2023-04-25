@@ -857,7 +857,8 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		fprintf(stderr, "\tinitialHeapCount: %d\n", creation.initialHeapCount);
 		fprintf(stderr, "\tincrementalHeapCount: %d\n", creation.incrementalHeapCount);
 		fprintf(stderr, "\tstackCount: %d\n", creation.stackCount);
-		fprintf(stderr, "\tkeyCount: %d\n", creation.keyCount);
+		fprintf(stderr, "\tinitialKeyCount: %d\n", creation.initialKeyCount);
+		fprintf(stderr, "\tincrementalKeyCount: %d\n", creation.incrementalKeyCount);
 		fprintf(stderr, "\tnameModulo: %d\n", creation.nameModulo);
 		fprintf(stderr, "\tsymbolModulo: %d\n", creation.symbolModulo);
 		fprintf(stderr, "\tparserBufferSize: %d\n", creation.parserBufferSize);
