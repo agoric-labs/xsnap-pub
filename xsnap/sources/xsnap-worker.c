@@ -339,7 +339,18 @@ int main(int argc, char* argv[])
 	}
 	xsInitializeSharedCluster();
 	if (argr) {
-		snapshot.stream = fopen(argv[argr], "rb");
+		char *path = argv[argr];
+		if (path[0] == '@') {
+			int fd = atoi(path + 1);
+			int tmpfd = dup(fd);
+			if (tmpfd < 0) {
+				snapshot.stream = NULL;
+			} else {
+				snapshot.stream = fdopen(tmpfd, "rb");
+			}
+		} else {
+			snapshot.stream = fopen(path, "rb");
+		}
 		if (snapshot.stream) {
 			machine = xsReadSnapshot(&snapshot, "xsnap", NULL);
 			fclose(snapshot.stream);
