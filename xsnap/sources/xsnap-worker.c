@@ -537,7 +537,17 @@ int main(int argc, char* argv[])
 			#endif
 				path = nsbuf + 1;
 				SnapshotStream stream;
-				stream.file = fopen(path, "wb");
+				if (path[0] == '@') {
+					int fd = atoi(path + 1);
+					int tmpfd = dup(fd);
+					if (tmpfd < 0) {
+						stream.file = NULL;
+					} else {
+						stream.file = fdopen(tmpfd, "ab");
+					}
+				} else {
+					stream.file = fopen(path, "wb");
+				}
 				stream.size = 0;
 				if (stream.file) {
 					snapshot.stream = &stream;
