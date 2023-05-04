@@ -28,7 +28,7 @@ C_OPTIONS = \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
 	-DmxAliasInstance=0 \
-	-DmxExplicitResourceManagement=1 \
+	-DmxExplicitResourceManagement=0 \
 	-DmxKeysGarbageCollection=1 \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
