@@ -327,6 +327,10 @@ int main(int argc, char* argv[])
 			xsVersion(version, sizeof(version));
 			printf("xsnap %s (XS %s)\n", XSNAP_VERSION, version);
 			return E_SUCCESS;
+		}
+		else if (!strcmp(argv[argi], "-n")) {
+			printf("agoric-upgrade-10\n");
+			return E_SUCCESS;
 		} else {
 			xsPrintUsage();
 			return E_BAD_USAGE;
