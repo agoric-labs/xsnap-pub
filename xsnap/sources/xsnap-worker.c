@@ -1,5 +1,19 @@
 #include "xsnap.h"
 
+// XS heap-snapshot contents depend upon the availability of
+// __has_builtin (e.g. xsRun.c mxCase(XS_CODE_MULTIPLY) , around line
+// 3419): it creates XS_INTEGER_KIND if available, XS_NUMBER_KIND if
+// not. This is not visible from userspace, but breaks snapshot
+// consensus between nodes compiled with e.g. gcc-9 (no __has_builtin,
+// default compiler in Ubuntu-20.04-LTS) and gcc-11 (has it, default
+// in Ubuntu-22.04-LTS). To prohibit variation which might break
+// consensus, insist upon the newer feature, which will force an
+// upgrade of either distro or compiler.
+
+#ifndef __has_builtin
+#error "xsnap requires __has_builtin (gcc>=10, e.g. Ubuntu-22.04), see https://github.com/Agoric/agoric-sdk/issues/7829"
+#endif
+
 #define SNAPSHOT_SIGNATURE "xsnap 1"
 #ifndef XSNAP_VERSION
 # error "You must define XSNAP_VERSION in the right Makefile"
