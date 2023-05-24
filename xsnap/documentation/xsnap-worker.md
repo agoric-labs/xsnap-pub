@@ -13,6 +13,7 @@ The launch arguments are:
 * `-r <snapshot filename>`: launch from a JS snapshot file, instead of an empty environment
 * `-s SIZE`: set `parserBufferSize`, in kiB (1024 bytes)
 * `-v`: print the `xsnap` version and exit with rc 0
+* `-n`: print the agoric-upgrade version and exit with rc 0
 * All `argv` strings that do not start with a hyphen are ignored. This allows the parent to include dummy no-op arguments to e.g. label the worker process with a vat ID and name, so admins can use `ps` to distinguish between workers being run for different purposes.
 
 Once started, the process listens on file descriptor 3, and will write to file descriptor 4. The process will perform a blocking read on fd3 until a complete netstring is received. The first character of the body of this netstring indicates what command to execute, with the remainder of the body as the command's payload. The commands are:
