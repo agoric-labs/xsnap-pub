@@ -182,7 +182,7 @@ typedef enum {
 // 250 syscalls
 #define MAX_TIMESTAMPS 502
 static struct timeval timestamps[MAX_TIMESTAMPS];
-static unsigned int num_timestamps;
+static int num_timestamps;
 static unsigned int timestamps_overrun;
 static void resetTimestamps() {
 	timestamps_overrun = 0;
@@ -210,7 +210,7 @@ static char timestampBuffer[1 + MAX_TIMESTAMPS * (DIGITS_FOR_64 + 1 + 6 + 1) + 1
 
 static char *renderTimestamps() {
 	// return pointer to static string buffer with '[NN.NN,NN.NN]', or NULL
-	unsigned int size, i, wrote;
+	int size, i, wrote;
 	char *p = timestampBuffer;
 	size = sizeof(timestampBuffer); // holds all numbers, commas, and \0
 	*(p++) = '['; size--;
@@ -219,8 +219,17 @@ static char *renderTimestamps() {
 		// been printed if the size were unlimited, not including the
 		// final \0". It writes at most size-1 characters, then writes
 		// the trailing \0.
+		// The type of tv_usec is 32 bits on Darwin and 64 bits on Linux at
+		// time of writing.
+		// We cast into the wider precision to ensure the format specifier gets
+		// the expected number of bits behind the variadic args reference.
+		// We do the same for tv_sec out of an outrageous abundance of caution.
 		wrote = snprintf(p, size, "%lu.%06lu",
-						 timestamps[i].tv_sec, timestamps[i].tv_usec);
+						 (unsigned long)timestamps[i].tv_sec,
+						 (unsigned long)timestamps[i].tv_usec);
+		if (wrote > size) {
+			return NULL;
+		}
 		p += wrote;
 		size -= wrote;
 		if (size < 2) { // 2 is enough for "]\0", but 1 is not
