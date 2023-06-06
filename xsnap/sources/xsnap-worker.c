@@ -342,8 +342,8 @@ int main(int argc, char* argv[])
 		256 * 1024,			/* initialHeapCount */
 		128 * 1024,			/* incrementalHeapCount */
 		4096,				/* stackCount */
-		32000, 				/* initialKeyCount */
-		8000,				/* incrementalKeyCount */
+		2 * 1024, 			/* initialKeyCount */
+		2 * 1024,			/* incrementalKeyCount */
 		1993,				/* nameModulo */
 		127,				/* symbolModulo */
 		parserBufferSize,	/* parserBufferSize */
@@ -456,7 +456,7 @@ int main(int argc, char* argv[])
 								fxTestRecord(mxTestRecordJSON | mxTestRecordParam, nsbuf + 1, nslen - 1);
 							#endif
 							// TODO: can we avoid a copy?
-							xsVar(0) = xsArrayBuffer(nsbuf + 1, nslen - 1);
+							xsVar(0) = xsArrayBuffer(nsbuf + 1, (xsIntegerValue)nslen - 1);
 							xsVar(1) = xsCall1(xsGlobal, xsID("handleCommand"), xsVar(0));
 						} else {
 							#if XSNAP_TEST_RECORD
@@ -931,7 +931,7 @@ static void xs_issueCommand(xsMachine *the)
 		xsUnknownError("Received unexpected command reply.");
 	}
 
-	xsResult = xsArrayBuffer(buf + 1, len - 1);
+	xsResult = xsArrayBuffer(buf + 1, (xsIntegerValue)len - 1);
 	free(buf);
 }
 
