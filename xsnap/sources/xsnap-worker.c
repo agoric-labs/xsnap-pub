@@ -219,6 +219,21 @@ static char *renderTimestamps() {
 	return timestampBuffer;
 }
 
+int data_pointer_value = 1234;
+int bss_pointer_value = 0;
+
+void print_pointers() {
+	char *heap_pointer = malloc(1);
+	int stack_value;
+
+	printf(".text pointer: %p\n", &print_pointers);
+	printf(".data pointer: %p\n", &data_pointer_value);
+	printf(".bss  pointer: %p\n", &bss_pointer_value);
+	printf("heap  pointer: %p\n", heap_pointer);
+	printf("stack pointer: %p\n", &stack_value);
+	free(heap_pointer);
+}
+
 int main(int argc, char* argv[])
 {
 	int argi;
@@ -298,6 +313,10 @@ int main(int argc, char* argv[])
 				xsPrintUsage();
 				return E_BAD_USAGE;
 			}
+		}
+		else if (!strcmp(argv[argi], "--print-pointers")) {
+			print_pointers();
+			return E_SUCCESS;
 		}
 		else if (!strcmp(argv[argi], "-v")) {
 			char version[16];
@@ -670,6 +689,7 @@ void xsPrintUsage()
 	printf("\t-l <limit>: metering limit (default to none)\n");
 	printf("\t-s <size>: parser buffer size, in kB (default to 8192)\n");
 	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
+	printf("\t--print-pointers: print pointers (to test ASLR)\n");
 	printf("\t-v: print XS version\n");
 }
 
