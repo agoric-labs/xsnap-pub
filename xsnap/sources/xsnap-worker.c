@@ -738,6 +738,7 @@ void xsPrintUsage(FILE* file)
 	fprintf(file, "\t-l <limit>: metering limit (default to none)\n");
 	fprintf(file, "\t-s <size>: parser buffer size, in kB (default to 8192)\n");
 	fprintf(file, "\t-r <snapshot>: read snapshot to create the XS machine\n");
+	fprintf(file, "\t-n: print worker interface codename\n");
 	fprintf(file, "\t-v: print XS version\n");
 }
 
