@@ -286,14 +286,14 @@ int main(int argc, char* argv[])
 		if (argv[argi][0] != '-')
 			continue;
 		if (!strcmp(argv[argi], "-h")) {
-			xsPrintUsage();
+			xsPrintUsage(stdout);
 			return 0;
 		} else if (!strcmp(argv[argi], "-i")) {
 			argi++;
 			if (argi < argc)
 				interval = atoi(argv[argi]);
 			else {
-				xsPrintUsage();
+				xsPrintUsage(stderr);
 				return E_BAD_USAGE;
 			}
 		}
@@ -303,7 +303,7 @@ int main(int argc, char* argv[])
 			if (argi < argc)
 				gxCrankMeteringLimit = atoi(argv[argi]);
 			else {
-				xsPrintUsage();
+				xsPrintUsage(stderr);
 				return E_BAD_USAGE;
 			}
 #else
@@ -318,7 +318,7 @@ int main(int argc, char* argv[])
 			if (argi < argc)
 				argr = argi;
 			else {
-				xsPrintUsage();
+				xsPrintUsage(stderr);
 				return E_BAD_USAGE;
 			}
 		}
@@ -327,7 +327,7 @@ int main(int argc, char* argv[])
 			if (argi < argc)
 				parserBufferSize = 1024 * atoi(argv[argi]);
 			else {
-				xsPrintUsage();
+				xsPrintUsage(stderr);
 				return E_BAD_USAGE;
 			}
 		}
@@ -341,7 +341,7 @@ int main(int argc, char* argv[])
 			printf("agoric-upgrade-10\n");
 			return E_SUCCESS;
 		} else {
-			xsPrintUsage();
+			xsPrintUsage(stderr);
 			return E_BAD_USAGE;
 		}
 	}
@@ -730,15 +730,16 @@ void xsBuildAgent(xsMachine* machine)
 	xsEndHost(machine);
 }
 
-void xsPrintUsage()
+void xsPrintUsage(FILE* file)
 {
-	printf("xsnap [-h] [-i <interval>] [-l <limit>] [-s <size>] [-m] [-r <snapshot>] [-s] [-v]\n");
-	printf("\t-h: print this help message\n");
-	printf("\t-i <interval>: metering interval (default to 1)\n");
-	printf("\t-l <limit>: metering limit (default to none)\n");
-	printf("\t-s <size>: parser buffer size, in kB (default to 8192)\n");
-	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
-	printf("\t-v: print XS version\n");
+	fprintf(file, "xsnap [-h] [-i <interval>] [-l <limit>] [-s <size>] [-m] [-r <snapshot>] [-s] [-v]\n");
+	fprintf(file, "\t-h: print this help message\n");
+	fprintf(file, "\t-i <interval>: metering interval (default to 1)\n");
+	fprintf(file, "\t-l <limit>: metering limit (default to none)\n");
+	fprintf(file, "\t-s <size>: parser buffer size, in kB (default to 8192)\n");
+	fprintf(file, "\t-r <snapshot>: read snapshot to create the XS machine\n");
+	fprintf(file, "\t-n: print worker interface codename\n");
+	fprintf(file, "\t-v: print XS version\n");
 }
 
 void xs_clearTimer(xsMachine* the)
