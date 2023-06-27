@@ -35,6 +35,7 @@ C_OPTIONS = \
 	-DXSNAP_TEST_RECORD=0 \
 	-DmxAliasInstance=0 \
 	-DmxExplicitResourceManagement=1 \
+	-DmxKeysGarbageCollection=1 \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
