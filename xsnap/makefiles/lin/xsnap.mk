@@ -22,6 +22,8 @@ C_OPTIONS = \
 	-fno-common \
 	-DINCLUDE_XSPLATFORM \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
+	-DmxCanonicalNaN=1 \
+	-DmxKeysGarbageCollection=1 \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxParse=1 \

@@ -315,7 +315,8 @@ int main(int argc, char* argv[])
 		256 * 1024,			/* initialHeapCount */
 		128 * 1024,			/* incrementalHeapCount */
 		4096,				/* stackCount */
-		32000,				/* keyCount */
+		32 * 1024,			/* initialKeyCount */
+		16 * 1024,			/* incrementalKeyCount */
 		1993,				/* nameModulo */
 		127,				/* symbolModulo */
 		parserBufferSize,	/* parserBufferSize */
@@ -542,6 +543,19 @@ int main(int argc, char* argv[])
 					int writeError = fxWriteOkay(toParent, meterIndex, machine, "", 0);
 					if (writeError != 0) {
 						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
+						c_exit(E_IO_ERROR);
+					}
+					path = nsbuf + 1;
+					snapshot.stream = fopen(path, "rb");
+					if (snapshot.stream) {
+						fxUseSnapshot(machine, &snapshot);
+						fclose(snapshot.stream);
+					}
+					else
+						snapshot.error = errno;
+					if (snapshot.error) {
+						fprintf(stderr, "cannot restore snapshot %s: %s\n",
+								path, strerror(snapshot.error));
 						c_exit(E_IO_ERROR);
 					}
 				} else {

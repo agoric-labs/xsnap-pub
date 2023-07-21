@@ -28,10 +28,11 @@ C_OPTIONS = \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
 	-DXSNAP_VERSION=\"$(XSNAP_VERSION)\" \
 	-DXSNAP_TEST_RECORD=0 \
+	-DmxCanonicalNaN=1 \
+	-DmxKeysGarbageCollection=1 \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
-	-UmxInstrument \
 	-DmxNoConsole=1 \
 	-DmxBoundsCheck=1 \
 	-DmxParse=1 \
