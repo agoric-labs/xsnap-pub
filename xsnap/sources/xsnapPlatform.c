@@ -804,8 +804,9 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 {
 	Atom atom;
 	txByte byte;
-	txID profileID;
 	txCreation creation;
+	txID profileID;
+	txInteger tag;
 	Atom blockAtom;
 	txByte* block = C_NULL;
 // 	txByte* blockLimit;
@@ -853,19 +854,22 @@ void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot)
 		atom.atomSize = ntohl(atom.atomSize) - 8;
 		mxThrowIf((*snapshot->read)(snapshot->stream, &creation, sizeof(txCreation)));
 		mxThrowIf((*snapshot->read)(snapshot->stream, &profileID, sizeof(txID)));
+		mxThrowIf((*snapshot->read)(snapshot->stream, &tag, sizeof(txInteger)));
 		fprintf(stderr, "%4.4s %d\n", (txString)&(atom.atomType), atom.atomSize + 8);
 		fprintf(stderr, "\tinitialChunkSize: %d\n", creation.initialChunkSize);
 		fprintf(stderr, "\tincrementalChunkSize: %d\n", creation.incrementalChunkSize);
 		fprintf(stderr, "\tinitialHeapCount: %d\n", creation.initialHeapCount);
 		fprintf(stderr, "\tincrementalHeapCount: %d\n", creation.incrementalHeapCount);
 		fprintf(stderr, "\tstackCount: %d\n", creation.stackCount);
-		fprintf(stderr, "\tkeyCount: %d\n", creation.keyCount);
+		fprintf(stderr, "\tinitialKeyCount: %d\n", creation.initialKeyCount);
+		fprintf(stderr, "\tincrementalKeyCount: %d\n", creation.incrementalKeyCount);
 		fprintf(stderr, "\tnameModulo: %d\n", creation.nameModulo);
 		fprintf(stderr, "\tsymbolModulo: %d\n", creation.symbolModulo);
 		fprintf(stderr, "\tparserBufferSize: %d\n", creation.parserBufferSize);
 		fprintf(stderr, "\tparserTableModulo: %d\n", creation.parserTableModulo);
 		fprintf(stderr, "\tstaticSize: %d\n", creation.staticSize);
 		fprintf(stderr, "\tprofileID: %d\n", profileID);
+		fprintf(stderr, "\ttag: %d\n", tag);
 
 		mxThrowIf((*snapshot->read)(snapshot->stream, &blockAtom, sizeof(Atom)));
 		blockAtom.atomSize = ntohl(blockAtom.atomSize) - 8;
