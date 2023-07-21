@@ -515,7 +515,6 @@ void xs_currentMeterLimit(xsMachine* the)
 
 void xs_gc(xsMachine* the)
 {
-	fprintf(stderr, "gc()\n");
 	xsCollectGarbage();
 }
 
