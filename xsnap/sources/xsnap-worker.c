@@ -544,6 +544,19 @@ int main(int argc, char* argv[])
 						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
 						c_exit(E_IO_ERROR);
 					}
+					path = nsbuf + 1;
+					snapshot.stream = fopen(path, "rb");
+					if (snapshot.stream) {
+						fxUseSnapshot(machine, &snapshot);
+						fclose(snapshot.stream);
+					}
+					else
+						snapshot.error = errno;
+					if (snapshot.error) {
+						fprintf(stderr, "cannot restore snapshot %s: %s\n",
+								path, strerror(snapshot.error));
+						c_exit(E_IO_ERROR);
+					}
 				} else {
 					// TODO: dynamically build error message including Exception message.
 					int writeError = fxWriteNetString(toParent, "!", "", 0);

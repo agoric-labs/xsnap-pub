@@ -69,6 +69,8 @@ struct xsSnapshotRecord {
 
 #define xsReadSnapshot(_SNAPSHOT, _NAME, _CONTEXT) \
 	fxReadSnapshot(_SNAPSHOT, _NAME, _CONTEXT)
+#define xsUseSnapshot(_THE, _SNAPSHOT) \
+	fxUseSnapshot(_THE, _SNAPSHOT)
 #define xsWriteSnapshot(_THE, _SNAPSHOT) \
 	fxWriteSnapshot(_THE, _SNAPSHOT)
 	
@@ -113,6 +115,7 @@ mxImport void fxSetCurrentMeter(xsMachine* the, xsUnsignedValue value);
 #endif
 
 mxImport xsMachine* fxReadSnapshot(xsSnapshot* snapshot, xsStringValue theName, void* theContext);
+mxImport int fxUseSnapshot(xsMachine* the, xsSnapshot* snapshot);
 mxImport int fxWriteSnapshot(xsMachine* the, xsSnapshot* snapshot);
 
 mxImport void fxRunDebugger(xsMachine* the);
