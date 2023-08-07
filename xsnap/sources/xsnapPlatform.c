@@ -412,50 +412,7 @@ void fxRunProgramFile(txMachine* the, txString path)
 
 txID fxFindModule(txMachine* the, txSlot* realm, txID moduleID, txSlot* slot)
 {
-	char name[C_PATH_MAX];
-	char path[C_PATH_MAX];
-	txInteger dot = 0;
-	txString slash;
-	fxToStringBuffer(the, slot, name, sizeof(name));
-	if (name[0] == '.') {
-		if (name[1] == '/') {
-			dot = 1;
-		}
-		else if ((name[1] == '.') && (name[2] == '/')) {
-			dot = 2;
-		}
-	}
-	if (dot) {
-		if (moduleID == XS_NO_ID)
-			return XS_NO_ID;
-		c_strncpy(path, fxGetKeyName(the, moduleID), C_PATH_MAX - 1);
-		path[C_PATH_MAX - 1] = 0;
-		slash = c_strrchr(path, mxSeparator);
-		if (!slash)
-			return XS_NO_ID;
-		if (dot == 2) {
-			*slash = 0;
-			slash = c_strrchr(path, mxSeparator);
-			if (!slash)
-				return XS_NO_ID;
-		}
-#if mxWindows
-		{
-			char c;
-			char* s = name;
-			while ((c = *s)) {
-				if (c == '/')
-					*s = '\\';
-				s++;
-			}
-		}
-#endif
-	}
-	else
-		slash = path;
-	*slash = 0;
-	c_strcat(path, name + dot);
-	return fxNewNameC(the, path);
+	mxException = fxNewNameC(the, "Cannot dynamic import");
 }
 
 void fxLoadModule(txMachine* the, txSlot* module, txID moduleID)
