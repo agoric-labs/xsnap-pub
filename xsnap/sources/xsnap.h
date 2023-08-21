@@ -52,32 +52,7 @@ struct xsSnapshotRecord {
 		(_THE)->firstJump = __HOST_JUMP__.nextJump; \
 		break; \
 	} while(1)
-
-		// xsBooleanValue (*meterCallback)(xsMachine*, xsUnsignedValue) = (_THE)->meterCallback; \
-		// xsUnsignedValue meterInterval = (_THE)->meterInterval; \
-
-#define xsSuspendMetering(_THE) \
-	do { \
-		fxEndMetering(_THE); \
-		(_THE)->stack = __HOST_JUMP__.stack, \
-		(_THE)->scope = __HOST_JUMP__.scope, \
-		(_THE)->frame = __HOST_JUMP__.frame, \
-		(_THE)->code = __HOST_JUMP__.code, \
-		(_THE)->firstJump = __HOST_JUMP__.nextJump;
-
-#define xsResumeMetering(_THE, _CALLBACK, _STEP) \
-		__HOST_JUMP__.nextJump = (_THE)->firstJump; \
-		__HOST_JUMP__.stack = (_THE)->stack; \
-		__HOST_JUMP__.scope = (_THE)->scope; \
-		__HOST_JUMP__.frame = (_THE)->frame; \
-		__HOST_JUMP__.environment = NULL; \
-		__HOST_JUMP__.code = (_THE)->code; \
-		__HOST_JUMP__.flag = 0; \
-		(_THE)->firstJump = &__HOST_JUMP__; \
-		fxBeginMetering(_THE, _CALLBACK, _STEP); \
-		break; \
-	} while(1)
-
+			
 #define xsGetCurrentMeter(_THE) \
 	fxGetCurrentMeter(_THE)
 #define xsSetCurrentMeter(_THE, _VALUE) \
@@ -86,8 +61,6 @@ struct xsSnapshotRecord {
 #else
 	#define xsBeginMetering(_THE, _CALLBACK, _STEP)
 	#define xsEndMetering(_THE)
-	#define xsSuspendMetering(_THE)
-	#define xsResumeMetering(_THE, _CALLBACK, _STEP)
 	#define xsPatchHostFunction(_FUNCTION,_PATCH)
 	#define xsMeterHostFunction(_COUNT) (void)(_COUNT)
 	#define xsGetCurrentMeter(_THE) 0
