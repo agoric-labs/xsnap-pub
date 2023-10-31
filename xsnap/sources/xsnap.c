@@ -12,7 +12,7 @@ static void xsReplay(xsMachine* machine);
 static void xs_currentMeterLimit(xsMachine* the);
 static void xs_gc(xsMachine* the);
 static void xs_issueCommand(xsMachine* the);
-static void xs_lockdown(xsMachine *the);
+//static void xs_lockdown(xsMachine *the);
 static void xs_performance_now(xsMachine* the);
 static void xs_print(xsMachine* the);
 static void xs_resetMeter(xsMachine* the);
@@ -515,7 +515,6 @@ void xs_currentMeterLimit(xsMachine* the)
 
 void xs_gc(xsMachine* the)
 {
-	fprintf(stderr, "gc()\n");
 	xsCollectGarbage();
 }
 
@@ -565,6 +564,7 @@ void xs_issueCommand(xsMachine* the)
 	fclose(file);
 }
 
+#if 0
 void xs_lockdown(xsMachine *the)
 {
 	fx_lockdown(the);
@@ -609,6 +609,7 @@ void xs_lockdown(xsMachine *the)
 // 	xsResult = xsGet(xsGlobal, xsID("setTimeout"));
 // 	xsCall1(xsGlobal, xsID("harden"), xsResult);
 }
+#endif
 
 void xs_performance_now(xsMachine *the)
 {
