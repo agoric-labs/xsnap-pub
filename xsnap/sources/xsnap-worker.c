@@ -569,6 +569,48 @@ int main(int argc, char* argv[])
 				}
 				break;
 
+			case 'r':
+			#if XSNAP_TEST_RECORD
+				fxTestRecord(mxTestRecordParam, nsbuf + 1, nslen - 1);
+			#endif
+				path = nsbuf + 1;
+				if (path[0] == '@') {
+					int fd = atoi(path + 1);
+					int tmpfd = dup(fd);
+					if (tmpfd < 0) {
+						snapshot.stream = NULL;
+					} else {
+						snapshot.stream = fdopen(tmpfd, "rb");
+					}
+				} else {
+					snapshot.stream = fopen(path, "rb");
+				}
+
+				if (snapshot.stream) {
+					fxUseSnapshot(machine, &snapshot);
+					fclose(snapshot.stream);
+				}
+				else
+					snapshot.error = errno;
+
+				if (snapshot.error) {
+					fprintf(stderr, "cannot restore snapshot %s: %s\n",
+							path, strerror(snapshot.error));
+					// TODO: dynamically build error message including Exception message.
+					int writeError = fxWriteNetString(toParent, "!", "", 0);
+					if (writeError != 0) {
+						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
+					}
+					c_exit(E_IO_ERROR);
+				} else {
+					int writeError = fxWriteOkay(toParent, meterIndex, machine, "", 0);
+					if (writeError != 0) {
+						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
+						c_exit(E_IO_ERROR);
+					}
+				}
+				break;
+				
 			case 'w':
 			#if XSNAP_TEST_RECORD
 				fxTestRecord(mxTestRecordParam, nsbuf + 1, nslen - 1);
