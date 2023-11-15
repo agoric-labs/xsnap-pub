@@ -267,12 +267,48 @@ txSlot* fxAllocateSlots(txMachine* the, txSize theCount)
 {
 	// fprintf(stderr, "fxAllocateSlots(%u) * %d = %ld\n", theCount, sizeof(txSlot), theCount * sizeof(txSlot));
 	adjustSpaceMeter(the, theCount * sizeof(txSlot));
-	return (txSlot*)c_malloc(theCount * sizeof(txSlot));
+	txByte* base;
+	txByte* result;
+// 	result = c_malloc(theCount * sizeof(txSlot));
+	if (the->stackBottom == C_NULL) {
+#if mxWindows
+		base = result = VirtualAlloc(NULL, mxReserveChunkSize, MEM_RESERVE, PAGE_READWRITE);
+#else
+		base = result = mmap(NULL, mxReserveChunkSize, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+#endif
+	}
+	else {
+		base = (txByte*)(the->stackBottom);
+		result = (txByte*)(the->stackTop);
+		if (the->firstHeap)
+			result = (txByte*)(the->firstHeap->value.reference);
+	}
+	if (result) {
+		txSize current = (txSize)(result - base);
+		txSize size = fxAddChunkSizes(the, current, fxMultiplyChunkSizes(the, theCount, sizeof(txSlot)));
+		current = fxRoundToPageSize(the, current);
+		size = fxRoundToPageSize(the, size);
+#if mxWindows
+		if (!VirtualAlloc(base + current, size - current, MEM_COMMIT, PAGE_READWRITE))
+#else
+		if (size > mxReserveChunkSize)
+			result = NULL;
+		else if (mprotect(base + current, size - current, PROT_READ | PROT_WRITE))
+#endif
+			result = NULL;
+	}	
+	return (txSlot*)result;
 }
 
 void fxFreeSlots(txMachine* the, void* theSlots)
 {
-	c_free(theSlots);
+// 	c_free(theSlots);
+	if (the->stackBottom == theSlots)
+#if mxWindows
+		VirtualFree(theSlots, 0, MEM_RELEASE);
+#else
+		munmap(theSlots, mxReserveChunkSize);
+#endif
 }
 
 void fxCreateMachinePlatform(txMachine* the)
