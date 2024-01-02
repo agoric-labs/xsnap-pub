@@ -6,6 +6,7 @@ NAME = xsnap-worker
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
+ARCH := $(shell uname -m)
 
 # MODDABLE = $(CURDIR)/../../moddable
 BUILD_DIR = $(CURDIR)/../../build
@@ -49,8 +50,36 @@ C_OPTIONS = \
 C_OPTIONS += \
 	-Wno-misleading-indentation \
 	-Wno-implicit-fallthrough
+
+LINK_OPTIONS = -rdynamic
+
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	C_OPTIONS += -g -O1 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	ifeq ($(SANITIZER), memory)
+		C_OPTIONS += -fsanitize=memory
+		LINK_OPTIONS += -fsanitize=memory
+
+		# add origin tracking, it adds additional perf cost on top of msan
+		ifdef MSAN_TRACK_ORIGINS
+			C_OPTIONS += -fsanitize-memory-track-origins
+		endif
+	endif
+
+	ifeq ($(SANITIZER), address)
+		C_OPTIONS += -fsanitize=address -fsanitize-recover=address
+		LINK_OPTIONS += -fsanitize=address -fsanitize-recover=address
+	endif
+
+	ifeq ($(SANITIZER), undefined)
+		C_OPTIONS += -fsanitize=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fsanitize-recover=undefined
+		LINK_OPTIONS += -fsanitize=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr -fsanitize-recover=undefined
+
+		# function and other ubsan checks not available in some arch, such as arm
+		ifneq ($(ARCH), aarch64)
+			C_OPTIONS += -fsanitize=array-bounds,function,unsigned-integer-overflow
+			LINK_OPTIONS += -fsanitize=array-bounds,function,unsigned-integer-overflow
+		endif
+	endif
 else
 	C_OPTIONS += -O3
 endif
@@ -61,8 +90,6 @@ ifeq ($(XSNAP_RANDOM_INIT),1)
 	LIBRARIES += -lbsd
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
-
-LINK_OPTIONS = -rdynamic
 
 OBJECTS = \
 	$(TMP_DIR)/xsAll.o \
