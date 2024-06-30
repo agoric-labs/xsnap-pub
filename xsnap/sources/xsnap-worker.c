@@ -338,7 +338,7 @@ int main(int argc, char* argv[])
 			return E_SUCCESS;
 		}
 		else if (!strcmp(argv[argi], "-n")) {
-			printf("agoric-upgrade-10\n");
+			printf("deprecated\n");
 			return E_SUCCESS;
 		} else {
 			xsPrintUsage();
