@@ -17,6 +17,9 @@
 #define SNAPSHOT_SIGNATURE "xsnap 1"
 #ifndef XSNAP_VERSION
 # error "You must define XSNAP_VERSION in the right Makefile"
+#else
+// Allows grepping the binary's strings for the version: strings xsnap-worker | grep xsnap_version
+char *VERSION = "xsnap_version: " XSNAP_VERSION;
 #endif
 
 #ifndef XSNAP_TEST_RECORD
@@ -338,7 +341,7 @@ int main(int argc, char* argv[])
 			return E_SUCCESS;
 		}
 		else if (!strcmp(argv[argi], "-n")) {
-			printf("agoric-upgrade-10\n");
+			printf("deprecated\n");
 			return E_SUCCESS;
 		} else {
 			xsPrintUsage();
