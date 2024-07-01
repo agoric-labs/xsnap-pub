@@ -17,6 +17,9 @@
 #define SNAPSHOT_SIGNATURE "xsnap 1"
 #ifndef XSNAP_VERSION
 # error "You must define XSNAP_VERSION in the right Makefile"
+#else
+// Allows grepping the binary's strings for the version: strings xsnap-worker | grep xsnap_version
+char *VERSION = "xsnap_version: " XSNAP_VERSION;
 #endif
 
 #ifndef XSNAP_TEST_RECORD
