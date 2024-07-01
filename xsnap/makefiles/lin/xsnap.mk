@@ -18,6 +18,8 @@ PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
 TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
 
+LIBRARIES = -ldl -lm -lpthread
+
 C_OPTIONS = \
 	-fno-common \
 	-DINCLUDE_XSPLATFORM \
@@ -45,9 +47,6 @@ ifeq ($(GOAL),debug)
 else
 	C_OPTIONS += -DmxBoundsCheck=1 -O3
 endif
-
-LIBRARIES = -ldl -lm -lpthread
-
 ifeq ($(XSNAP_RANDOM_INIT),1)
 	LIBRARIES += -lbsd
 	C_OPTIONS += -DmxSnapshotRandomInit

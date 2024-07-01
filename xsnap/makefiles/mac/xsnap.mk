@@ -21,6 +21,8 @@ TMP_DIR = $(BUILD_DIR)/tmp/mac/$(GOAL)/$(NAME)
 MACOS_ARCH ?= 
 MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
 
+LIBRARIES = -framework CoreServices
+
 C_OPTIONS = \
 	-fno-common \
 	$(MACOS_ARCH) \
@@ -53,8 +55,6 @@ endif
 ifeq ($(XSNAP_RANDOM_INIT),1)
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
-
-LIBRARIES = -framework CoreServices
 
 LINK_OPTIONS = $(MACOS_VERSION_MIN) $(MACOS_ARCH)
 ifneq ("x$(SDKROOT)", "x")
@@ -132,7 +132,7 @@ $(BIN_DIR):
 
 $(BIN_DIR)/$(NAME): $(OBJECTS)
 	@echo "#" $(NAME) $(GOAL) ": cc" $(@F)
-	$(CC) $(LINK_OPTIONS) $(LIBRARIES) $(OBJECTS) -o $@
+	$(CC) $(LINK_OPTIONS) $(OBJECTS) $(LIBRARIES) -o $@
 
 $(OBJECTS): $(TLS_DIR)/xsnap.h
 $(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
