@@ -33,6 +33,11 @@ TMP_DIR = $(BUILD_DIR)/tmp/$(PLATFORM)/$(GOAL)/$(NAME)
 
 LIBRARIES = -framework CoreServices
 
+SHARED_OPTIONS =
+ifneq ("x$(SDKROOT)", "x")
+	SHARED_OPTIONS += -isysroot $(SDKROOT)
+endif
+
 C_OPTIONS = \
 	-fno-common \
 	$(MACOS_ARCH) \
@@ -53,10 +58,8 @@ C_OPTIONS = \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
 	-I$(TLS_DIR) \
-	-I$(TMP_DIR)
-ifneq ("x$(SDKROOT)", "x")
-	C_OPTIONS += -isysroot $(SDKROOT)
-endif
+	-I$(TMP_DIR) \
+	$(SHARED_OPTIONS)
 ifeq ($(GOAL),debug)
 	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
 else
@@ -66,10 +69,7 @@ ifeq ($(XSNAP_RANDOM_INIT),1)
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
 
-LINK_OPTIONS = $(MACOS_VERSION_MIN) $(MACOS_ARCH)
-ifneq ("x$(SDKROOT)", "x")
-	LINK_OPTIONS += -isysroot $(SDKROOT)
-endif
+LINK_OPTIONS = $(MACOS_VERSION_MIN) $(MACOS_ARCH) $(SHARED_OPTIONS)
 
 # C_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
 # LINK_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
