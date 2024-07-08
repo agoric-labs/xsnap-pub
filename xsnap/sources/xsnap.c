@@ -146,7 +146,16 @@ int main(int argc, char* argv[])
 	for (argi = 1; argi < argc; argi++) {
 		if (argv[argi][0] != '-')
 			continue;
-		if (!strcmp(argv[argi], "-d")) {
+		if (!strcmp(argv[argi], "-h")) {
+			xsPrintUsage();
+			return 0;
+		}
+		else if (!strcmp(argv[argi], "-v")) {
+			xsVersion(path, sizeof(path));
+			printf("XS %s\n", path);
+			return 0;
+		}
+		else if (!strcmp(argv[argi], "-d")) {
 			argi++;
 			if (argi < argc)
 				argd = argi;
@@ -158,8 +167,6 @@ int main(int argc, char* argv[])
 		}
 		else if (!strcmp(argv[argi], "-e"))
 			option = 1;
-		else if (!strcmp(argv[argi], "-h"))
-			xsPrintUsage();
 		else if (!strcmp(argv[argi], "-i")) {
 			argi++;
 			if (argi < argc)
@@ -203,10 +210,6 @@ int main(int argc, char* argv[])
 			option = 3;
 		else if (!strcmp(argv[argi], "-t"))
 			option = 4;
-		else if (!strcmp(argv[argi], "-v")) {
-			xsVersion(path, sizeof(path));
-			printf("XS %s\n", path);
-		}
 		else if (!strcmp(argv[argi], "-w")) {
 			argi++;
 			if (argi < argc)

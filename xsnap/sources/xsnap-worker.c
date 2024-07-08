@@ -290,8 +290,15 @@ int main(int argc, char* argv[])
 			continue;
 		if (!strcmp(argv[argi], "-h")) {
 			xsPrintUsage();
-			return 0;
-		} else if (!strcmp(argv[argi], "-i")) {
+			return E_SUCCESS;
+		}
+		else if (!strcmp(argv[argi], "-v")) {
+			char version[C_PATH_MAX];
+			xsVersion(version, sizeof(version));
+			printf("xsnap %s (XS %s)\n", XSNAP_VERSION, version);
+			return E_SUCCESS;
+		}
+		else if (!strcmp(argv[argi], "-i")) {
 			argi++;
 			if (argi < argc)
 				interval = atoi(argv[argi]);
@@ -334,16 +341,11 @@ int main(int argc, char* argv[])
 				return E_BAD_USAGE;
 			}
 		}
-		else if (!strcmp(argv[argi], "-v")) {
-			char version[16];
-			xsVersion(version, sizeof(version));
-			printf("xsnap %s (XS %s)\n", XSNAP_VERSION, version);
-			return E_SUCCESS;
-		}
 		else if (!strcmp(argv[argi], "-n")) {
 			printf("deprecated\n");
 			return E_SUCCESS;
-		} else {
+		}
+		else {
 			xsPrintUsage();
 			return E_BAD_USAGE;
 		}
