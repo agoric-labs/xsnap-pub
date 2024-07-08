@@ -3,12 +3,14 @@
 
 # CONSTANTS
 NAME = xsnap
+PLATFORM = lin
 
 # REQUIRED INPUTS
 MODDABLE = # /path/to/moddable/repo
 
 # OPTIONAL INPUTS
 GOAL ?= debug
+# GOAL ?= release
 EXTRA_DEPS =
 VERBOSE =
 
@@ -21,11 +23,11 @@ TLS_DIR = $(CURDIR)/../../sources
 
 XS_DIR = $(MODDABLE)/xs
 
-BIN_DIR = $(BUILD_DIR)/bin/lin/$(GOAL)
+BIN_DIR = $(BUILD_DIR)/bin/$(PLATFORM)/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
-TMP_DIR = $(BUILD_DIR)/tmp/lin/$(GOAL)/$(NAME)
+TMP_DIR = $(BUILD_DIR)/tmp/$(PLATFORM)/$(GOAL)/$(NAME)
 
 LIBRARIES = -ldl -lm -lpthread
 
@@ -114,7 +116,7 @@ OBJECTS = \
 	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/modBase64.o \
 	$(TMP_DIR)/xsnapPlatform.o \
-	$(TMP_DIR)/xsnap.o
+	$(TMP_DIR)/$(NAME).o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
 VPATH += $(MODDABLE)/modules/data/text/decoder
@@ -151,7 +153,6 @@ $(TMP_DIR)/%.o: %.c
 	@$(if $(MODDABLE),,$(error MODDABLE=/path/to/moddable/repo is required))
 
 clean:
-	rm -rf $(BUILD_DIR)/bin/lin/debug/$(NAME)
-	rm -rf $(BUILD_DIR)/bin/lin/release/$(NAME)
-	rm -rf $(BUILD_DIR)/tmp/lin/debug/$(NAME)
-	rm -rf $(BUILD_DIR)/tmp/lin/release/$(NAME)
+	# Remove files for all values of $(GOAL).
+	rm -rf $(BUILD_DIR)/bin/$(PLATFORM)/*/$(NAME)
+	rm -rf $(BUILD_DIR)/tmp/$(PLATFORM)/*/$(NAME)

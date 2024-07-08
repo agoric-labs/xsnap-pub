@@ -3,6 +3,7 @@
 
 # CONSTANTS
 NAME = xsnap-worker
+PLATFORM = mac
 
 # REQUIRED INPUTS
 MODDABLE = # /path/to/moddable/repo
@@ -10,6 +11,7 @@ XSNAP_VERSION =
 
 # OPTIONAL INPUTS
 GOAL ?= debug
+# GOAL ?= release
 EXTRA_DEPS =
 VERBOSE =
 MACOS_ARCH ?=
@@ -24,11 +26,11 @@ TLS_DIR = $(CURDIR)/../../sources
 
 XS_DIR = $(MODDABLE)/xs
 
-BIN_DIR = $(BUILD_DIR)/bin/mac/$(GOAL)
+BIN_DIR = $(BUILD_DIR)/bin/$(PLATFORM)/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
-TMP_DIR = $(BUILD_DIR)/tmp/mac/$(GOAL)/$(NAME)
+TMP_DIR = $(BUILD_DIR)/tmp/$(PLATFORM)/$(GOAL)/$(NAME)
 
 LIBRARIES = -framework CoreServices
 
@@ -129,7 +131,7 @@ OBJECTS = \
 	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/modBase64.o \
 	$(TMP_DIR)/xsnapPlatform.o \
-	$(TMP_DIR)/xsnap-worker.o
+	$(TMP_DIR)/$(NAME).o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
 VPATH += $(MODDABLE)/modules/data/text/decoder
@@ -166,7 +168,6 @@ $(TMP_DIR)/%.o: %.c
 	@$(if $(MODDABLE),,$(error MODDABLE=/path/to/moddable/repo is required))
 
 clean:
-	rm -rf $(BUILD_DIR)/bin/mac/debug/$(NAME)
-	rm -rf $(BUILD_DIR)/bin/mac/release/$(NAME)
-	rm -rf $(BUILD_DIR)/tmp/mac/debug/$(NAME)
-	rm -rf $(BUILD_DIR)/tmp/mac/release/$(NAME)
+	# Remove files for all values of $(GOAL).
+	rm -rf $(BUILD_DIR)/bin/$(PLATFORM)/*/$(NAME)
+	rm -rf $(BUILD_DIR)/tmp/$(PLATFORM)/*/$(NAME)
