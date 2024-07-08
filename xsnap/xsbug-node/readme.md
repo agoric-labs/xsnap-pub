@@ -60,7 +60,7 @@ The xsnap pipes are used to communicate with xsnap as usual. The script reads th
 
 This module defines the xsbug `Machine` class.
 
-The xsbug protocol uses XML so the module needs a SAX parser. A few have been tried but [Saxophone](https://github.com/matteodelabre/saxophone) was the only one that worked well. 
+The xsbug protocol uses XML so the module needs a SAX parser. A few have been tried but [Saxophone](https://github.com/matteodelabre/saxophone) was the only one that worked well.
 
 The xsbug `Machine` class defines a bunch of commands and internal events. These are all the commands and events that **xsbug** uses.
 
@@ -133,7 +133,4 @@ Then instruments can be sampled at will.
 	xsSampleInstrumentation(machine, xsnapInstrumentCount, xsnapInstrumentValues);
 	#endif
 
-Every time instruments are sampled, the xsbug `Machine` object triggers the `'instruments'` event. 
-
-
-
+Every time instruments are sampled, the xsbug `Machine` object triggers the `'instruments'` event.
