@@ -394,20 +394,23 @@ void xsBuildAgent(xsMachine* machine)
 
 void xsPrintUsage()
 {
-	printf("xsnap [-h] [-e] [i <interval] [l <limit] [-m] [-r <snapshot>] [-s] [-v] [-w <snapshot>] strings...\n");
-	printf("\t-d <snapshot>: dump snapshot to stderr\n");
-	printf("\t-e: eval strings\n");
+	printf("xsnap [-h] [-v]\n");
+	printf("      [-d] [-i <interval>] [-l <limit>] [-q] [-r <snapshot>] [-w <snapshot>]\n");
+	printf("      [-e] [-m] [-s] <string>...\n");
 	printf("\t-h: print this help message\n");
-	printf("\t-i <interval>: metering interval (default to 1)\n");
-	printf("\t-l <limit>: metering limit (default to none)\n");
-	printf("\t-m: strings are paths to modules\n");
-	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
-	printf("\t-s: strings are paths to scripts\n");
 	printf("\t-v: print XS version\n");
-	printf("\t-w <snapshot>: write snapshot of the XS machine at exit\n");
+	printf("\t-d <snapshot>: read heap snapshot file and dump a textual representation to stderr\n");
+	printf("\t-i <interval>: metering interval (defaults to 1)\n");
+	printf("\t-l <limit>: metering limit (defaults to no limit)\n");
+	printf("\t-q: prefix `print` output with the current meter count in square brackets\n");
+	printf("\t-r <snapshot>: read heap snapshot file to create the XS machine\n");
+	printf("\t-w <snapshot>: write heap snapshot file of the XS machine at exit\n");
+	printf("\t-e: evaluate each string (in its own unique scope)\n");
+	printf("\t-m: interpret each string as the path for a module to load\n");
+	printf("\t-s: interpret each string as the path for a script to load\n");
 	printf("without -e, -m, -s:\n");
-	printf("\tif the extension is .mjs, strings are paths to modules\n");
-	printf("\telse strings are paths to scripts\n");
+	printf("\teach string with suffix \".mjs\" is interpreted as the path for a module to load\n");
+	printf("\tand each other string is interpreted as the path for a script to load\n");
 }
 
 static int gxStep = 0;
