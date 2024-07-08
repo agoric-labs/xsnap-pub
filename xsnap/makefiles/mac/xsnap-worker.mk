@@ -1,13 +1,23 @@
 % : %.c
 %.o : %.c
 
-GOAL ?= debug
+# CONSTANTS
 NAME = xsnap-worker
+
+# REQUIRED INPUTS
+MODDABLE = # /path/to/moddable/repo
+XSNAP_VERSION =
+
+# OPTIONAL INPUTS
+GOAL ?= debug
+EXTRA_DEPS =
+VERBOSE =
+MACOS_ARCH ?=
+MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
+
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
-
-EXTRA_DEPS =
 
 BUILD_DIR = $(CURDIR)/../../build
 TLS_DIR = $(CURDIR)/../../sources
@@ -19,9 +29,6 @@ INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
 TMP_DIR = $(BUILD_DIR)/tmp/mac/$(GOAL)/$(NAME)
-
-MACOS_ARCH ?= 
-MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
 
 LIBRARIES = -framework CoreServices
 

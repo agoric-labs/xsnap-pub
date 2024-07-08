@@ -1,13 +1,20 @@
 % : %.c
 %.o : %.c
 
-GOAL ?= debug
+# CONSTANTS
 NAME = xsnap
+
+# REQUIRED INPUTS
+MODDABLE = # /path/to/moddable/repo
+
+# OPTIONAL INPUTS
+GOAL ?= debug
+EXTRA_DEPS =
+VERBOSE =
+
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
-
-EXTRA_DEPS =
 
 BUILD_DIR = $(CURDIR)/../../build
 TLS_DIR = $(CURDIR)/../../sources
