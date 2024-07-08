@@ -150,7 +150,11 @@ $(OBJECTS): $(INC_DIR)/xs.h
 $(OBJECTS): $(EXTRA_DEPS)
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
+	@$(if $(MODDABLE),,$(error MODDABLE=/path/to/moddable/repo is required))
 	$(CC) $< $(C_OPTIONS) -c -o $@
+
+%.h:
+	@$(if $(MODDABLE),,$(error MODDABLE=/path/to/moddable/repo is required))
 
 clean:
 	rm -rf $(BUILD_DIR)/bin/lin/debug/$(NAME)
