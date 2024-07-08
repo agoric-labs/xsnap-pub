@@ -2,19 +2,19 @@
 
 `sources/xsnap-worker.c` contains a variant of `xsnap` which accepts execution commands over a file descriptor. It is designed to function as a "JS coprocessor", driven by a parent process (which can be written in any language). The parent does a fork+exec of `xsnap-worker`, then writes [netstring](https://en.wikipedia.org/wiki/Netstring)-formatted commands to the child. The child executes those commands (evaluating JS or delivering the command to a handler function), possibly emitting one or more requests to the parent during execution, then finally finishes the command and writing a status to the parent (including metering information).
 
-By default, the process starts from an empty JS environment (in the future it may start from an empty [hardened JavaScript](https://github.com/endojs/endo/blob/master/packages/ses/README.md) environment, but for now you must [`lockdown()`](https://github.com/endojs/endo/blob/master/packages/ses/README.md#lockdown) yourself). If the child is started with a `-r SNAPSHOTFILENAME` argument, it will start from a previously-written JS engine snapshot instead.
+By default, the process starts from an empty JS environment (in the future it may start from an empty [hardened JavaScript](https://github.com/endojs/endo/blob/master/packages/ses/README.md) environment, but for now you must [`lockdown()`](https://github.com/endojs/endo/blob/master/packages/ses/README.md#lockdown) yourself). If the process is started with a `-r $SNAPSHOT` option, it will instead start from a previously-written heap snapshot file.
 
-The launch arguments are:
+Supported options are:
 
 * `-h`: print this help message
-* `-i <interval>`: set the metering check interval: larger intervals are more efficient but are likely to exceed the execution budget by more computrons
-* `-l <limit>`: limit each delivery to `<limit>` computrons
-* `-p`: print the current meter count before every `print()`
-* `-r <snapshot filename>`: launch from a JS snapshot file, instead of an empty environment
-* `-s SIZE`: set `parserBufferSize`, in kiB (1024 bytes)
-* `-v`: print the `xsnap` version and exit with rc 0
-* `-n`: print the agoric-upgrade version and exit with rc 0
-* All `argv` strings that do not start with a hyphen are ignored. This allows the parent to include dummy no-op arguments to e.g. label the worker process with a vat ID and name, so admins can use `ps` to distinguish between workers being run for different purposes.
+* `-v`: print xsnap and XS version information
+* `-i <interval>`: set the metering check interval (defaults to 1). Larger intervals are more efficient but are likely to exceed the execution budget by more computrons.
+* `-l <limit>`: limit each delivery to `<limit>` computrons (defaults to no limit)
+- `-p`: prefix `print` output with the current meter count in square brackets
+* `-r <snapshot>`: read the heap snapshot file to create the XS machine (rather than initializing to an empty environment)
+* `-s <size>`: set parser buffer size, in kiB (defaults to 8192 = 8_388_608 bytes)
+
+All arguments that do not start with a hyphen are ignored, so they may be used to label the worker process with identifying information visible to e.g. `ps` (such as a vat ID and name).
 
 Once started, the process listens on file descriptor 3, and will write to file descriptor 4. The process will perform a blocking read on fd3 until a complete netstring is received. The first character of the body of this netstring indicates what command to execute, with the remainder of the body as the command's payload. The commands are:
 
