@@ -931,7 +931,13 @@ static void xs_issueCommand(xsMachine *the)
 	size_t len;
 	int readError = fxReadNetString(fromParent, &buf, &len);
 	if (readError != 0) {
-		xsUnknownError(fxReadNetStringError(readError));
+		char * errorMessage;
+		if (feof(fromParent)) {
+			errorMessage = "Got EOF on netstring read. Has parent died?";
+		} else {
+			errorMessage = fxReadNetStringError(readError);
+		}
+		xsUnknownError(errorMessage);
 	}
 	recordTimestamp(); // after command-result received from parent
 
