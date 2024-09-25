@@ -58,6 +58,7 @@ static char* fxReadNetStringError(int code);
 static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *the, char* buf, size_t len);
 static int fxWriteNetString(FILE* outStream, char* prefix, char* buf, size_t len);
 static char* fxWriteNetStringError(int code);
+static void fxSigPipeHandler(int sigNum);
 
 extern xsIntegerValue fxGetCurrentHeapCount(xsMachine* the);
 
@@ -254,6 +255,14 @@ static char *renderTimestamps() {
 	return timestampBuffer;
 }
 
+static void fxSigPipeHandler(int sigNum)
+{
+	if (sigNum == SIGPIPE) {
+		fprintf(stderr, "Caught SIGPIPE. Has parent died?\n");
+		c_exit(E_IO_ERROR);
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	int argi;
@@ -396,6 +405,9 @@ int main(int argc, char* argv[])
 		machine = xsCreateMachine(creation, "xsnap", NULL);
 		xsBuildAgent(machine);
 	}
+
+	signal(SIGPIPE, fxSigPipeHandler);
+
 	if (!(fromParent = fdopen(3, "rb"))) {
 		fprintf(stderr, "fdopen(3) from parent failed\n");
 		c_exit(E_IO_ERROR);
@@ -931,6 +943,10 @@ static void xs_issueCommand(xsMachine *the)
 	size_t len;
 	int readError = fxReadNetString(fromParent, &buf, &len);
 	if (readError != 0) {
+		if (feof(fromParent)) {
+			fprintf(stderr, "Got EOF on netstring read. Has parent died?\n");
+			c_exit(E_IO_ERROR);
+		}
 		xsUnknownError(fxReadNetStringError(readError));
 	}
 	recordTimestamp(); // after command-result received from parent
