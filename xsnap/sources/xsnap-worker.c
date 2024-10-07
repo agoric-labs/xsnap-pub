@@ -263,7 +263,11 @@ static void fxSigPipeHandler(int sigNum)
 	}
 }
 
+#ifdef exportXsnapMain
+int xsnapMain(int argc, char* argv[])
+#else
 int main(int argc, char* argv[])
+#endif
 {
 	int argi;
 	int argr = 0;
