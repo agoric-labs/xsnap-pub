@@ -291,7 +291,7 @@ void fxCreateMachinePlatform(txMachine* the)
 	// the->allocationLimit = 10 * measured_max;
 
 	size_t GB = 1024 * 1024 * 1024;
-	the->allocationLimit = 2 * GB;
+	the->allocationLimit = 4 * GB;
 }
 
 void fxDeleteMachinePlatform(txMachine* the)
