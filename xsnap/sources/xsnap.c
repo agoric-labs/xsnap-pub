@@ -112,8 +112,7 @@ int main(int argc, char* argv[])
 		256 * 1024,			/* initialHeapCount */
 		128 * 1024,			/* incrementalHeapCount */
 		4096,				/* stackCount */
-		32000, 				/* initialKeyCount */
-		8000,				/* incrementalKeyCount */
+		32000, 				/* keyCount */
 		1993,				/* nameModulo */
 		127,				/* symbolModulo */
 		parserBufferSize,	/* parserBufferSize */
