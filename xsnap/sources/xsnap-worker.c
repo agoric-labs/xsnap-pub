@@ -299,8 +299,15 @@ int main(int argc, char* argv[])
 			continue;
 		if (!strcmp(argv[argi], "-h")) {
 			xsPrintUsage();
-			return 0;
-		} else if (!strcmp(argv[argi], "-i")) {
+			return E_SUCCESS;
+		}
+		else if (!strcmp(argv[argi], "-v")) {
+			char version[C_PATH_MAX];
+			xsVersion(version, sizeof(version));
+			printf("xsnap %s (XS %s)\n", XSNAP_VERSION, version);
+			return E_SUCCESS;
+		}
+		else if (!strcmp(argv[argi], "-i")) {
 			argi++;
 			if (argi < argc)
 				interval = atoi(argv[argi]);
@@ -343,16 +350,11 @@ int main(int argc, char* argv[])
 				return E_BAD_USAGE;
 			}
 		}
-		else if (!strcmp(argv[argi], "-v")) {
-			char version[16];
-			xsVersion(version, sizeof(version));
-			printf("xsnap %s (XS %s)\n", XSNAP_VERSION, version);
-			return E_SUCCESS;
-		}
 		else if (!strcmp(argv[argi], "-n")) {
 			printf("deprecated\n");
 			return E_SUCCESS;
-		} else {
+		}
+		else {
 			xsPrintUsage();
 			return E_BAD_USAGE;
 		}
@@ -747,13 +749,18 @@ void xsBuildAgent(xsMachine* machine)
 
 void xsPrintUsage()
 {
-	printf("xsnap [-h] [-i <interval>] [-l <limit>] [-s <size>] [-m] [-r <snapshot>] [-s] [-v]\n");
+	printf("xsnap [-h] [-v]\n");
+	printf("      [-i <interval>] [-l <limit>] [-p] [-r <snapshot>] [-s <size>]\n");
+	printf("      <ignored-operand>...\n");
 	printf("\t-h: print this help message\n");
-	printf("\t-i <interval>: metering interval (default to 1)\n");
-	printf("\t-l <limit>: metering limit (default to none)\n");
-	printf("\t-s <size>: parser buffer size, in kB (default to 8192)\n");
-	printf("\t-r <snapshot>: read snapshot to create the XS machine\n");
-	printf("\t-v: print XS version\n");
+	printf("\t-v: print xsnap and XS version information\n");
+	printf("\t-i <interval>: metering interval (defaults to 1)\n");
+	printf("\t-l <limit>: metering limit (defaults to no limit)\n");
+	printf("\t-p: prefix `print` output with the current meter count in square brackets\n");
+	printf("\t-r <snapshot>: read heap snapshot file to create the XS machine\n");
+	printf("\t-s <size>: parser buffer size, in kiB (defaults to 8192 = 8_388_608 bytes)\n");
+	printf("All arguments that do not start with a hyphen are ignored, so they may be used\n");
+	printf("to label the worker process with identifying information visible to e.g. `ps`.\n");
 }
 
 void xs_clearTimer(xsMachine* the)

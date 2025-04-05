@@ -1,13 +1,10 @@
 # xsnap
-Revised: January 4, 2022
-
-Warning: These notes are preliminary. Omissions and errors are likely. If you encounter problems, please ask for assistance.
 
 ## About
 
-`xsnap` is a custom XS runtime that read and write XS snapshots. See [XS snapshots](./documentation/XS Snapshots.md) for details and the C programming interface. `xsnap` can create a machine from scratch or from a snapshot.
+`xsnap` is a custom [Moddable XS](https://github.com/Moddable-OpenSource/moddable/blob/public/documentation/xs/XS%20Differences.md) runtime that can dump and load from [heap snapshots](./documentation/XS%20Snapshots.md).
 
-`xsnap` also uses the metering version of XS. There are options to constraint how much computation a machine can do. See [XS metering](./documentation/XS Metering.md)
+`xsnap` also uses the metering version of XS. There are options to constraint how much computation a machine can do. See [XS metering](./documentation/XS%20Metering.md).
 
 ## Additions
 
@@ -40,7 +37,7 @@ Besides ECMAScript built-ins and intrinsics, `xsnap` provides additional feature
 
 ## Build
 
-### Linux 
+### Linux
 
 	cd ./makefiles/lin
 	make
@@ -48,7 +45,7 @@ Besides ECMAScript built-ins and intrinsics, `xsnap` provides additional feature
 The debug version is built in `$MODDABLE/build/bin/lin/debug`
 The release version is built in `$MODDABLE/build/bin/lin/release `
 
-### macOS 
+### macOS
 
 	cd ./xs/makefiles/mac
 	make
@@ -56,7 +53,7 @@ The release version is built in `$MODDABLE/build/bin/lin/release `
 The debug version is built in `$MODDABLE/build/bin/mac/debug`
 The release version is built in `$MODDABLE/build/bin/mac/release `
 	
-### Windows 
+### Windows
 
 	cd .\xs\makefiles\win
 	build
@@ -67,27 +64,27 @@ The release version is built in `$MODDABLE/build/bin/win/release `
 ## Usage
 
 	xsnap [-h] [-v]
-			[-d <snapshot>] [-r <snapshot>] [-w <snapshot>] 
-			[-i <interval>] [-l <limit>] [-p]
-			[-e] [-m] [-s] strings...
+	      [-d] [-i <interval>] [-l <limit>] [-q] [-r <snapshot>] [-w <snapshot>]
+	      [-i <interval>] [-l <limit>] [-q]
+	      [-e] [-m] [-s] <string>...
 
 - `-h`: print this help message
 - `-v`: print XS version
-- `-d <snapshot>`: dump snapshot to stderr 
-- `-r <snapshot>`: read snapshot to create the XS machine 
-- `-w <snapshot>`: write snapshot of the XS machine at exit
-- `-i <interval>`: metering interval (defaults to 1) 
-- `-l <limit>`: metering limit (defaults to none) 
-- `-p`: prefix `print` output with metering index
-- `-e`: eval `strings`
-- `-m`: `strings` are paths to modules
-- `-s`: `strings` are paths to scripts
+- `-d <snapshot>`: read heap snapshot file and dump a textual representation to stderr
+- `-i <interval>`: metering interval (defaults to 1)
+- `-l <limit>`: metering limit (defaults to no limit)
+- `-q`: prefix `print` output with the current meter count in square brackets
+- `-r <snapshot>`: read heap snapshot file to create the XS machine
+- `-w <snapshot>`: write heap snapshot file of the XS machine at exit
+- `-e`: evaluate each `<string>` (in its own unique scope)
+- `-m`: interpret each `<string>` as the path for a module to load
+- `-s`: interpret each `<string>` as the path for a script to load
 
-Without `-e`, `-m`, `-s`, if the extension is `.mjs`, strings are paths to modules, else strings are paths to scripts.
+Without `-e`, `-m`, `-s`, each string with suffix ".mjs" is interpreted as the path for a module to load and each other string is interpreted as the path for a script to load.
 
 ## Examples
 
-Add the debug or release directory here above to your path. 
+Add the debug or release directory here above to your path.
 
 ### helloworld
 
@@ -139,7 +136,7 @@ Just to test how a `Proxy` instance, its target and its handler survive the snap
 
 ### modules
 
-Use the `-m` option for modules 
+Use the `-m` option for modules
 
 	cd ./examples/modules
 	xsnap -m before.js -w snapshot.xsm
@@ -149,7 +146,7 @@ Modules imported before writing the snapshot are available after reading the sna
 
 ### metering
 
-Use the `-l` option to limit the number of byte codes that can be executed. 
+Use the `-l` option to limit the number of byte codes that can be executed.
 
 	cd ./examples/metering
 	xsnap test.js -l 10000
@@ -174,12 +171,12 @@ There is a performance gain but a precision lost.
 
 ### metering-built-ins
 
-Use the `-p` option to prefix `print` output with the metering index. 
+Use the `-q` option to prefix `print` output with the current meter count in square brackets.
 
 	cd ./examples/metering-built-ins
-	xsnap test.js -p
+	xsnap test.js -q
 
-The tests builds, sorts and reverses an array of 100 random numbers. Observe the metering index around `sort` and `reverse`.
+The tests builds, sorts and reverses an array of 100 random numbers. Observe the increasing metering count.
 
 	...
 	[3935] 99 0.4153946155753893
@@ -187,5 +184,3 @@ The tests builds, sorts and reverses an array of 100 random numbers. Observe the
 	[11266] reverse
 	[16260] 0 0.000007826369259425611
 	...
-
-
