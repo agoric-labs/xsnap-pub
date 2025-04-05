@@ -2,7 +2,7 @@
 
 `sources/xsnap-worker.c` contains a variant of `xsnap` which accepts execution commands over a file descriptor. It is designed to function as a "JS coprocessor", driven by a parent process (which can be written in any language). The parent does a fork+exec of `xsnap-worker`, then writes [netstring](https://en.wikipedia.org/wiki/Netstring)-formatted commands to the child. The child executes those commands (evaluating JS or delivering the command to a handler function), possibly emitting one or more requests to the parent during execution, then finally finishes the command and writing a status to the parent (including metering information).
 
-By default, the process starts from an empty JS environment (in the future it may start from an empty [hardened JavaScript](https://github.com/endojs/endo/blob/master/packages/ses/README.md) environment, but for now you must [`lockdown()`](https://github.com/endojs/endo/blob/master/packages/ses/README.md#lockdown) yourself). If the process is started with a `-r $SNAPSHOT` option, it will instead start from a previously-written heap snapshot file.
+By default, the process starts from an empty JS environment (in the future it may start from an empty [hardened JavaScript](https://hardenedjs.org/) environment, but for now you must [`lockdown()`](https://github.com/endojs/endo/blob/master/packages/ses/README.md#lockdown) yourself). If the process is started with a `-r $SNAPSHOT` option, it will instead start from a previously-written heap snapshot file.
 
 Supported options are:
 
