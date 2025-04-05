@@ -1,3 +1,6 @@
+// For purposes of tracking Moddable changes, this module most closely resembles
+// tools/xst.h
+
 #ifndef __XSNAP_PLATFORM__
 #define __XSNAP_PLATFORM__
 
@@ -52,6 +55,8 @@
 #endif
 #include <string.h>
 #include <time.h>
+// XXX present in xst.h but absent on my machine. system dependency? need linkage in Makefile?
+//#include <fdlibm.h>
 #if mxWindows
 	#include <winsock2.h>
 	typedef SOCKET txSocket;
@@ -66,40 +71,154 @@
 	#include <unistd.h>
 	typedef int txSocket;
 	#define mxNoSocket -1
+  #if mxLinux
+  	#if GNUC > 11
+  		#define mxUseFloat16 1
+  	#endif
+  #else
+  	#define mxUseFloat16 1
+  #endif
 	#define mxUseGCCAtomics 1
 	#define mxUsePOSIXThreads 1
 #endif
 #ifdef mxInstrument
-#define mxMachinePlatform \
-	int abortStatus; \
-	int promiseJobs; \
-	void* timerJobs; \
-	void* waiterCondition; \
-	void* waiterData; \
-	void* waiterLink; \
-	size_t allocationLimit; \
-	size_t allocatedSpace;
+  #define mxMachinePlatform \
+  	int promiseJobs; \
+  	size_t allocationLimit; \
+  	size_t allocatedSpace;
 #else
-#define mxMachinePlatform \
-	txSocket connection; \
-	int abortStatus; \
-	int promiseJobs; \
-	void* timerJobs; \
-	void* waiterCondition; \
-	void* waiterData; \
-	void* waiterLink; \
-	size_t allocationLimit; \
-	size_t allocatedSpace;
+  #define mxMachinePlatform \
+	  txSocket connection; \
+	  int promiseJobs; \
+	  size_t allocationLimit; \
+	  size_t allocatedSpace; \
+ 	  void* rejection;
+    // XXX xst.h also has:
+ 	  // void* script;		// txScript*
 #endif
 
 #define mxUseDefaultBuildKeys 1
 #define mxUseDefaultParseScript 1
 #define mxUseDefaultSharedChunks 1
 
+typedef struct sxSharedTimer txSharedTimer;
+typedef void (*txSharedTimerCallback)(txSharedTimer* timer, void *refcon, int refconSize);
+
+extern void fxInitializeSharedTimers();
+extern void fxTerminateSharedTimers();
+extern void fxRescheduleSharedTimer(txSharedTimer* timer, double timeout, double interval);
+extern void* fxScheduleSharedTimer(double timeout, double interval, txSharedTimerCallback callback, void* refcon, int refconSize);
+extern void fxUnscheduleSharedTimer(txSharedTimer* timer);
+
+#define mxInitializeSharedTimers fxInitializeSharedTimers
+#define mxTerminateSharedTimers fxTerminateSharedTimers
+#define mxRescheduleSharedTimer fxRescheduleSharedTimer
+#define mxScheduleSharedTimer fxScheduleSharedTimer
+#define mxUnscheduleSharedTimer fxUnscheduleSharedTimer
+
 #if INTPTR_MAX == INT64_MAX
 	#define mx32bitID 1
 #endif
 
 #define mxCESU8 1
+#define mxCanonicalNaN 1
+#define mxHostFunctionPrimitive 0
+#define mxKeysGarbageCollection 1
+#define mxLockdown 1
+#define mxSnapshot 1
+#define mxMetering 1
+
+#define mxAliasInstance 0
+#define mxExplicitResourceManagement 1
+#define mxImmutableArrayBuffers 1
+#define mxModuleStuff 1
+
+#define mxMinusZero 1
+#define mxRegExpUnicodePropertyEscapes 1
+#define mxStringNormalize 1
+#define mxStringInfoCacheLength 4
+#define mxWithHasGetSequence 1
+
+#if mxWindows
+	#include <direct.h>
+	#include <errno.h>
+	#include <process.h>
+	typedef CONDITION_VARIABLE txCondition;
+	typedef CRITICAL_SECTION txMutex;
+    typedef DWORD txThread;
+	#define fxCreateCondition(CONDITION) InitializeConditionVariable(CONDITION)
+	#define fxCreateMutex(MUTEX) InitializeCriticalSection(MUTEX)
+	#define fxDeleteCondition(CONDITION) (void)(CONDITION)
+	#define fxDeleteMutex(MUTEX) DeleteCriticalSection(MUTEX)
+	#define fxLockMutex(MUTEX) EnterCriticalSection(MUTEX)
+	#define fxUnlockMutex(MUTEX) LeaveCriticalSection(MUTEX)
+	#define fxSleepCondition(CONDITION,MUTEX) SleepConditionVariableCS(CONDITION,MUTEX,INFINITE)
+	#define fxWakeAllCondition(CONDITION) WakeAllConditionVariable(CONDITION)
+	#define fxWakeCondition(CONDITION) WakeConditionVariable(CONDITION)
+	#define mxCurrentThread() GetCurrentThreadId()
+	#define mxMonotonicNow() ((txNumber)GetTickCount64())
+#else
+	#include <dirent.h>
+	#include <pthread.h>
+	#include <sys/stat.h>
+	typedef pthread_cond_t txCondition;
+	typedef pthread_mutex_t txMutex;
+	typedef pthread_t txThread;
+	#define fxCreateCondition(CONDITION) pthread_cond_init(CONDITION,NULL)
+	#define fxCreateMutex(MUTEX) pthread_mutex_init(MUTEX,NULL)
+	#define fxDeleteCondition(CONDITION) pthread_cond_destroy(CONDITION)
+	#define fxDeleteMutex(MUTEX) pthread_mutex_destroy(MUTEX)
+	#define fxLockMutex(MUTEX) pthread_mutex_lock(MUTEX)
+	#define fxUnlockMutex(MUTEX) pthread_mutex_unlock(MUTEX)
+	#define fxSleepCondition(CONDITION,MUTEX) pthread_cond_wait(CONDITION,MUTEX)
+	#define fxWakeAllCondition(CONDITION) pthread_cond_broadcast(CONDITION)
+	#define fxWakeCondition(CONDITION) pthread_cond_signal(CONDITION)
+	#define mxCurrentThread() pthread_self()
+	#define mxMonotonicNow() fxDateNow()
+#endif
+
+typedef struct sxAgent txAgent;
+typedef struct sxAgentCluster txAgentCluster;
+typedef struct sxAgentReport txAgentReport;
+typedef struct sxJob txJob;
+
+struct sxAgent {
+	txAgent* next;
+#if mxWindows
+    HANDLE thread;
+#else
+	pthread_t thread;
+#endif
+	int scriptLength;
+	char script[1];
+};
+
+struct sxAgentReport {
+	txAgentReport* next;
+	char message[1];
+};
+
+struct sxAgentCluster {
+	txMutex mainMutex;
+
+	txAgent* firstAgent;
+	txAgent* lastAgent;
+	
+	int count;
+	txCondition countCondition;
+	txMutex countMutex;
+
+	void* dataBuffer;
+	txCondition dataCondition;
+	txMutex dataMutex;
+	int dataValue;
+
+	txAgentReport* firstReport;
+	txAgentReport* lastReport;
+	txMutex reportMutex;
+};
+
+extern char *gxAbortStrings[];
+extern txAgentCluster gxAgentCluster;
 
 #endif /* __XSNAP_PLATFORM__ */

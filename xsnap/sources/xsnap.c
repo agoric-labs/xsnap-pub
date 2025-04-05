@@ -78,45 +78,45 @@ static int xsSnapshopWrite(void* stream, void* address, size_t size)
 {
 	return (fwrite(address, size, 1, stream) == 1) ? 0 : errno;
 }
-	
-static xsUnsignedValue gxCurrentMeter = 0;
+
+static uint64_t gxCurrentMeter = 0;
 static xsBooleanValue gxMeteringPrint = 0;
-static xsUnsignedValue gxMeteringLimit = 0;
+static uint64_t gxMeteringLimit = 0;
 #ifdef mxMetering
-static xsBooleanValue xsMeteringCallback(xsMachine* the, xsUnsignedValue index)
+static xsBooleanValue xsMeteringCallback(xsMachine* the, uint64_t index)
 {
 	if (index > gxMeteringLimit) {
-// 		fprintf(stderr, "too much computation\n");
+//		fprintf(stderr, "too much computation\n");
 		return 0;
 	}
-// 	fprintf(stderr, "%d\n", index);
+//	fprintf(stderr, "%d\n", index);
 	return 1;
 }
 #endif
 
-int main(int argc, char* argv[]) 
+int main(int argc, char* argv[])
 {
 	int argi;
-	int argd = 0;
-	int argp = 0;
-	int argr = 0;
-	int argw = 0;
+	int argd = 0; // -d argument index
+	int argp = 0; // -p argument index
+	int argr = 0; // -r argument index
+	int argw = 0; // -w argument index
 	int error = 0;
 	int interval = 0;
 	int option = 0;
 	int parserBufferSize = 8192 * 1024;
 	int profiling = 0;
 	xsCreation _creation = {
-		32 * 1024 * 1024,	/* initialChunkSize */
+		32 * 1024 * 1024, /* initialChunkSize */
 		4 * 1024 * 1024,	/* incrementalChunkSize */
 		256 * 1024,			/* initialHeapCount */
 		128 * 1024,			/* incrementalHeapCount */
 		4096,				/* stackCount */
-		32000, 				/* initialKeyCount */
+		32000,				/* initialKeyCount */
 		8000,				/* incrementalKeyCount */
 		1993,				/* nameModulo */
 		127,				/* symbolModulo */
-		parserBufferSize,	/* parserBufferSize */
+		parserBufferSize, /* parserBufferSize */
 		1993,				/* parserTableModulo */
 	};
 	xsCreation* creation = &_creation;
@@ -286,10 +286,41 @@ int main(int argc, char* argv[])
 					if (argi == argw)
 						continue;
 					if (option == 1) {
+						// TODO reconcile with xnsap-worker.c, which has a try/catch
+						// {
+						//	xsVars(3);
+						//	xsTry {
+						//		if (command == '?') {
+						//			#if XSNAP_TEST_RECORD
+						//				fxTestRecord(mxTestRecordJSON | mxTestRecordParam, nsbuf + 1, nslen - 1);
+						//			#endif
+						//			// TODO: can we avoid a copy?
+						//			xsVar(0) = xsArrayBuffer(nsbuf + 1, nslen - 1);
+						//			xsVar(1) = xsCall1(xsGlobal, xsID("handleCommand"), xsVar(0));
+						//		} else {
+						//			#if XSNAP_TEST_RECORD
+						//				fxTestRecord(mxTestRecordJS | mxTestRecordParam, nsbuf + 1, nslen - 1);
+						//			#endif
+						//			// TODO reconcile with xsnap.c -e
+						//			// xsResult = xsString(argv[argi]);
+						//			// xsCall1(xsGlobal, xsID("eval"), xsResult);
+						//			xsVar(0) = xsStringBuffer(nsbuf + 1, nslen - 1);
+						//			xsVar(1) = xsCall1(xsGlobal, xsID("eval"), xsVar(0));
+						//		}
+						//	}
+						//	xsCatch {
+						//		if (xsTypeOf(xsException) != xsUndefinedType) {
+						//			// fprintf(stderr, "%c: %s\n", command, xsToString(xsException));
+						//			error = E_UNHANDLED_EXCEPTION;
+						//			xsVar(1) = xsException;
+						//			xsException = xsUndefined;
+						//		}
+						//	}
+						// }
 						xsResult = xsString(argv[argi]);
 						xsCall1(xsGlobal, xsID("eval"), xsResult);
 					}
-					else {	
+					else {
 						if (!c_realpath(argv[argi], path))
 							xsURIError("file not found: %s", argv[argi]);
 						dot = strrchr(path, '.');
@@ -328,46 +359,48 @@ int main(int argc, char* argv[])
 		else
 			fxStopProfiling(machine, C_NULL);
 	}
-	if (machine->abortStatus)
-		error = machine->abortStatus;
+	if (machine->exitStatus) {
+		char *why = (machine->exitStatus <= XS_UNHANDLED_REJECTION_EXIT) ? gxAbortStrings[machine->exitStatus] : "unknown";
+		fprintf(stderr, "Error: %s\n", why);
+		error = 1;
+	}
 	xsDeleteMachine(machine);
-	xsTerminateSharedCluster();
 	return error;
 }
 
-void xsBuildAgent(xsMachine* machine) 
+void xsBuildAgent(xsMachine* machine)
 {
 	xsBeginHost(machine);
 	xsVars(1);
-	
-// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-// 	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
+
+//	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+//	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_setImmediate, 1);
 	xsDefine(xsGlobal, xsID("setImmediate"), xsResult, xsDontEnum);
-	
-// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-// 	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(xs_setInterval, 1);
-// 	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
 
-// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-// 	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(xs_setTimeout, 1);
-// 	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
-	
+//	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+//	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(xs_setInterval, 1);
+//	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
+
+//	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+//	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(xs_setTimeout, 1);
+//	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
+
 	xsResult = xsNewHostFunction(xs_gc, 1);
 	xsDefine(xsGlobal, xsID("gc"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_print, 1);
 	xsDefine(xsGlobal, xsID("print"), xsResult, xsDontEnum);
-	
+
 	xsResult = xsNewHostFunction(xs_issueCommand, 1);
 	xsDefine(xsGlobal, xsID("issueCommand"), xsResult, xsDontEnum);
-	
+
 	xsResult = xsNewObject();
 	xsVar(0) = xsNewHostFunction(xs_performance_now, 0);
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
-	
+
 	xsResult = xsNewHostFunction(xs_currentMeterLimit, 1);
 	xsDefine(xsGlobal, xsID("currentMeterLimit"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_resetMeter, 1);
@@ -376,15 +409,18 @@ void xsBuildAgent(xsMachine* machine)
 	modInstallTextDecoder(the);
 	modInstallTextEncoder(the);
 	modInstallBase64(the);
-// 	
- 	xsResult = xsNewHostFunction(fx_harden, 1);
- 	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(xs_lockdown, 0);
-// 	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(fx_petrify, 1);
-// 	xsDefine(xsGlobal, xsID("petrify"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(fx_mutabilities, 1);
-// 	xsDefine(xsGlobal, xsID("mutabilities"), xsResult, xsDontEnum);
+//
+	xsResult = xsNewHostFunction(fx_harden, 1);
+	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(xs_lockdown, 0);
+//	xsDefine(xsGlobal, xsID("lockdown"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(fx_petrify, 1);
+//	xsDefine(xsGlobal, xsID("petrify"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(fx_mutabilities, 1);
+//	xsDefine(xsGlobal, xsID("mutabilities"), xsResult, xsDontEnum);
+
+	// TODO upgrades in xst.c
+	// consider monotonicNow, isLockedDown, metering, runScript, unicodeCompare
 
 	xsEndHost(machine);
 }
@@ -449,17 +485,17 @@ void xsReplay(xsMachine* machine)
 						else if (which == 1) {
 							xsBeginHost(machine);
 							xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
-							length = fread(xsToArrayBuffer(xsResult), 1, length, file);	
+							length = fread(xsToArrayBuffer(xsResult), 1, length, file);
 							fclose(file);
 							xsCall1(xsGlobal, xsID("handleCommand"), xsResult);
 							fxRunLoop(machine);
 							xsEndHost(machine);
 						}
 						else if (which == 2) {
-// 							xsBeginHost(machine);
-// 							xsCollectGarbage();
-// 							xsEndHost(machine);
-// 							fclose(file);
+//							xsBeginHost(machine);
+//							xsCollectGarbage();
+//							xsEndHost(machine);
+//							fclose(file);
 							char buffer[1024];
 							char* slash;
 							xsSnapshot snapshot = {
@@ -526,30 +562,30 @@ void xs_issueCommand(xsMachine* the)
 	void* data;
 	size_t argLength;
 	void* argData;
-	
+
 	sprintf(path, "%05d-command.dat", gxStep);
 	gxStep++;
-	
+
 	file = fopen(path, "rb");
 	if (!file) xsUnknownError("cannot open %s", path);
 	fseek(file, 0, SEEK_END);
 	length = ftell(file);
 	fseek(file, 0, SEEK_SET);
 	data = c_malloc(length);
-	length = fread(data, 1, length, file);	
+	length = fread(data, 1, length, file);
 	fclose(file);
-	
+
 	argLength = xsGetArrayBufferLength(xsArg(0));
 	argData = xsToArrayBuffer(xsArg(0));
-	
+
 	if ((length != argLength) || c_memcmp(data, argData, length)) {
 		fprintf(stderr, "### %s %.*s\n", path, (int)argLength, (char*)argData);
-// 		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
+//		fprintf(stderr, "@@@ %s %.*s\n", path, (int)length, (char*)data);
 	}
 	else
 		fprintf(stderr, "### %s\n", path);
 	c_free(data);
-	
+
 	sprintf(path, "%05d-reply.dat", gxStep);
 	fprintf(stderr, "### %s\n", path);
 	gxStep++;
@@ -560,7 +596,7 @@ void xs_issueCommand(xsMachine* the)
 	fseek(file, 0, SEEK_SET);
 	xsResult = xsArrayBuffer(NULL, (xsIntegerValue)length);
 	data = xsToArrayBuffer(xsResult);
-	length = fread(data, 1, length, file);	
+	length = fread(data, 1, length, file);
 	fclose(file);
 }
 
@@ -568,20 +604,20 @@ void xs_issueCommand(xsMachine* the)
 void xs_lockdown(xsMachine *the)
 {
 	fx_lockdown(the);
-	
+
 	xsResult = xsGet(xsGlobal, xsID("Base64"));
 	xsCall1(xsGlobal, xsID("harden"), xsResult);
 	xsResult = xsGet(xsGlobal, xsID("TextDecoder"));
 	xsCall1(xsGlobal, xsID("harden"), xsResult);
 	xsResult = xsGet(xsGlobal, xsID("TextEncoder"));
 	xsCall1(xsGlobal, xsID("harden"), xsResult);
-	
-// 	xsResult = xsGet(xsGlobal, xsID("clearImmediate"));
-// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
-// 	xsResult = xsGet(xsGlobal, xsID("clearInterval"));
-// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
-// 	xsResult = xsGet(xsGlobal, xsID("clearTimeout"));
-// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
+
+//	xsResult = xsGet(xsGlobal, xsID("clearImmediate"));
+//	xsCall1(xsGlobal, xsID("harden"), xsResult);
+//	xsResult = xsGet(xsGlobal, xsID("clearInterval"));
+//	xsCall1(xsGlobal, xsID("harden"), xsResult);
+//	xsResult = xsGet(xsGlobal, xsID("clearTimeout"));
+//	xsCall1(xsGlobal, xsID("harden"), xsResult);
 	xsResult = xsGet(xsGlobal, xsID("currentMeterLimit"));
 	xsCall1(xsGlobal, xsID("harden"), xsResult);
 	xsResult = xsGet(xsGlobal, xsID("gc"));
@@ -604,10 +640,10 @@ void xs_lockdown(xsMachine *the)
 	xsCall1(xsGlobal, xsID("harden"), xsResult);
 	xsResult = xsGet(xsGlobal, xsID("setImmediate"));
 	xsCall1(xsGlobal, xsID("harden"), xsResult);
-// 	xsResult = xsGet(xsGlobal, xsID("setInterval"));
-// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
-// 	xsResult = xsGet(xsGlobal, xsID("setTimeout"));
-// 	xsCall1(xsGlobal, xsID("harden"), xsResult);
+//	xsResult = xsGet(xsGlobal, xsID("setInterval"));
+//	xsCall1(xsGlobal, xsID("harden"), xsResult);
+//	xsResult = xsGet(xsGlobal, xsID("setTimeout"));
+//	xsCall1(xsGlobal, xsID("harden"), xsResult);
 }
 #endif
 
@@ -629,7 +665,7 @@ void xs_print(xsMachine* the)
 	}
 #ifdef mxMetering
 	if (gxMeteringPrint)
-		fprintf(stdout, "[%u] ", xsGetCurrentMeter(the));
+		fprintf(stdout, "[%llu] ", xsGetCurrentMeter(the));
 #endif
 	for (i = 0; i < c; i++) {
 		if (i)
@@ -678,7 +714,7 @@ void xs_print(xsMachine* the)
 			}
 			p = q;
 		}
-	#endif	
+	#endif
 		fprintf(stdout, "%s", string);
 	}
 	fprintf(stdout, "\n");

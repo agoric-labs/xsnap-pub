@@ -7,8 +7,6 @@ ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
-EXTRA_DEPS =
-
 # MODDABLE = $(CURDIR)/../../moddable
 BUILD_DIR = $(CURDIR)/../../build
 TLS_DIR = $(CURDIR)/../../sources
@@ -33,7 +31,7 @@ C_OPTIONS = \
 	-DmxLockdown=1 \
 	-DmxMetering=1 \
 	-DmxDebug=1 \
-	-UmxInstrument \
+	-DmxInstrument=1 \
 	-DmxNoConsole=1 \
 	-DmxBoundsCheck=1 \
 	-DmxParse=1 \
@@ -144,7 +142,6 @@ $(OBJECTS): $(SRC_DIR)/xsAll.h
 $(OBJECTS): $(SRC_DIR)/xsScript.h
 $(OBJECTS): $(SRC_DIR)/xsSnapshot.h
 $(OBJECTS): $(INC_DIR)/xs.h
-$(OBJECTS): $(EXTRA_DEPS)
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
 	$(CC) $< $(C_OPTIONS) -c -o $@
