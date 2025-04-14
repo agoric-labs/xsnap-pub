@@ -2,6 +2,10 @@
 %.o : %.c
 
 GOAL ?= debug
+# Providing LIB=1 CC=clang generates a statically linkable library
+# build/lib/mac/$(GOAL)/xsnap-worker.a
+# that exports xnsapMain instead of main.
+LIB ?=
 NAME = xsnap-worker
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
@@ -19,6 +23,7 @@ TLS_DIR = $(CURDIR)/../../sources
 XS_DIR = $(MODDABLE)/xs
 
 BIN_DIR = $(BUILD_DIR)/bin/mac/$(GOAL)
+LIB_DIR = $(BUILD_DIR)/lib/mac/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
@@ -63,6 +68,9 @@ else
 endif
 ifeq ($(XSNAP_RANDOM_INIT),1)
 	C_OPTIONS += -DmxSnapshotRandomInit
+endif
+ifneq ("x$(LIB)","x")
+	C_OPTIONS += -DexportXsnapMain
 endif
 
 LIBRARIES = -framework CoreServices
@@ -133,7 +141,15 @@ VPATH += $(MODDABLE)/modules/data/text/decoder
 VPATH += $(MODDABLE)/modules/data/text/encoder
 VPATH += $(MODDABLE)/modules/data/base64
 
-build: $(TMP_DIR) $(BIN_DIR) $(BIN_DIR)/$(NAME)
+ifneq ("x$(LIB)","x")
+build: build-lib
+else
+build: build-bin
+endif
+
+build-bin: $(TMP_DIR) $(BIN_DIR) $(BIN_DIR)/$(NAME)
+
+build-lib: $(TMP_DIR) $(LIB_DIR) $(LIB_DIR)/$(NAME).a
 
 $(TMP_DIR):
 	mkdir -p $(TMP_DIR)
@@ -141,9 +157,16 @@ $(TMP_DIR):
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
+$(LIB_DIR):
+	mkdir -p $(LIB_DIR)
+
 $(BIN_DIR)/$(NAME): $(OBJECTS)
 	@echo "#" $(NAME) $(GOAL) ": cc" $(@F)
 	$(CC) $(LINK_OPTIONS) $(OBJECTS) $(LIBRARIES) -o $@
+
+$(LIB_DIR)/$(NAME).a: $(OBJECTS)
+	@echo "#" $(NAME) $(GOAL) ": ar" $(@F)
+	$(AR) q $(LIB_DIR)/$(NAME).a $(OBJECTS)
 
 $(OBJECTS): $(TLS_DIR)/xsnap.h
 $(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
@@ -161,5 +184,7 @@ $(TMP_DIR)/%.o: %.c
 clean:
 	rm -rf $(BUILD_DIR)/bin/mac/debug/$(NAME)
 	rm -rf $(BUILD_DIR)/bin/mac/release/$(NAME)
+	rm -rf $(BUILD_DIR)/lib/mac/debug/$(NAME)
+	rm -rf $(BUILD_DIR)/lib/mac/release/$(NAME)
 	rm -rf $(BUILD_DIR)/tmp/mac/debug/$(NAME)
 	rm -rf $(BUILD_DIR)/tmp/mac/release/$(NAME)
