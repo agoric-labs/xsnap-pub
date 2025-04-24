@@ -1,25 +1,42 @@
 % : %.c
 %.o : %.c
 
-GOAL ?= debug
+# CONSTANTS
 NAME = xsnap
+PLATFORM = mac
+
+# REQUIRED INPUTS
+MODDABLE = # /path/to/moddable/repo
+
+# OPTIONAL INPUTS
+GOAL ?= debug
+# GOAL ?= release
+EXTRA_DEPS =
+VERBOSE =
+MACOS_ARCH ?=
+MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
+
 ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
-BUILD_DIR = $(MODDABLE)/build
-TLS_DIR = ../../sources
+BUILD_DIR = $(CURDIR)/../../build
+TLS_DIR = $(CURDIR)/../../sources
 
 XS_DIR = $(MODDABLE)/xs
 
-BIN_DIR = $(BUILD_DIR)/bin/mac/$(GOAL)
+BIN_DIR = $(BUILD_DIR)/bin/$(PLATFORM)/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
 PLT_DIR = $(XS_DIR)/platforms
 SRC_DIR = $(XS_DIR)/sources
-TMP_DIR = $(BUILD_DIR)/tmp/mac/$(GOAL)/$(NAME)
+TMP_DIR = $(BUILD_DIR)/tmp/$(PLATFORM)/$(GOAL)/$(NAME)
 
-MACOS_ARCH ?= 
-MACOS_VERSION_MIN ?= -mmacosx-version-min=10.7
+LIBRARIES = -framework CoreServices
+
+SHARED_OPTIONS =
+ifneq ("x$(SDKROOT)", "x")
+	SHARED_OPTIONS += -isysroot $(SDKROOT)
+endif
 
 C_OPTIONS = \
 	-fno-common \
@@ -41,10 +58,8 @@ C_OPTIONS = \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
 	-I$(TLS_DIR) \
-	-I$(TMP_DIR)
-ifneq ("x$(SDKROOT)", "x")
-	C_OPTIONS += -isysroot $(SDKROOT)
-endif
+	-I$(TMP_DIR) \
+	$(SHARED_OPTIONS)
 ifeq ($(GOAL),debug)
 	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
 else
@@ -54,12 +69,7 @@ ifeq ($(XSNAP_RANDOM_INIT),1)
 	C_OPTIONS += -DmxSnapshotRandomInit
 endif
 
-LIBRARIES = -framework CoreServices
-
-LINK_OPTIONS = $(MACOS_VERSION_MIN) $(MACOS_ARCH)
-ifneq ("x$(SDKROOT)", "x")
-	LINK_OPTIONS += -isysroot $(SDKROOT)
-endif
+LINK_OPTIONS = $(MACOS_VERSION_MIN) $(MACOS_ARCH) $(SHARED_OPTIONS)
 
 # C_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
 # LINK_OPTIONS += -fsanitize=address -fno-omit-frame-pointer
@@ -115,7 +125,7 @@ OBJECTS = \
 	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/modBase64.o \
 	$(TMP_DIR)/xsnapPlatform.o \
-	$(TMP_DIR)/xsnap.o
+	$(TMP_DIR)/$(NAME).o
 
 VPATH += $(SRC_DIR) $(TLS_DIR)
 VPATH += $(MODDABLE)/modules/data/text/decoder
@@ -132,7 +142,7 @@ $(BIN_DIR):
 
 $(BIN_DIR)/$(NAME): $(OBJECTS)
 	@echo "#" $(NAME) $(GOAL) ": cc" $(@F)
-	$(CC) $(LINK_OPTIONS) $(LIBRARIES) $(OBJECTS) -o $@
+	$(CC) $(LINK_OPTIONS) $(OBJECTS) $(LIBRARIES) -o $@
 
 $(OBJECTS): $(TLS_DIR)/xsnap.h
 $(OBJECTS): $(TLS_DIR)/xsnapPlatform.h
@@ -142,12 +152,16 @@ $(OBJECTS): $(SRC_DIR)/xsAll.h
 $(OBJECTS): $(SRC_DIR)/xsScript.h
 $(OBJECTS): $(SRC_DIR)/xsSnapshot.h
 $(OBJECTS): $(INC_DIR)/xs.h
+$(OBJECTS): $(EXTRA_DEPS)
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
+	@$(if $(MODDABLE),,$(error MODDABLE=/path/to/moddable/repo is required))
 	$(CC) $< $(C_OPTIONS) -c -o $@
 
+%.h:
+	@$(if $(MODDABLE),,$(error MODDABLE=/path/to/moddable/repo is required))
+
 clean:
-	rm -rf $(BUILD_DIR)/bin/mac/debug/$(NAME)
-	rm -rf $(BUILD_DIR)/bin/mac/release/$(NAME)
-	rm -rf $(BUILD_DIR)/tmp/mac/debug/$(NAME)
-	rm -rf $(BUILD_DIR)/tmp/mac/release/$(NAME)
+	# Remove files for all values of $(GOAL).
+	rm -rf $(BUILD_DIR)/bin/$(PLATFORM)/*/$(NAME)
+	rm -rf $(BUILD_DIR)/tmp/$(PLATFORM)/*/$(NAME)
