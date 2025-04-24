@@ -23,7 +23,9 @@ mxExport void fxSetCurrentMeter(txMachine* the, uint64_t value);
 typedef struct sxJob txJob;
 
 struct sxJob {
+	txJob* next;
 	txMachine* the;
+	txNumber when;
 	txSlot self;
 	txSlot function;
 	txSlot argument;
@@ -48,32 +50,6 @@ static txHostHooks gxTimerHooks = {
 	fxDestroyTimer,
 	fxMarkTimer
 };
-
-void fx_callbackTimer(txSharedTimer* timer, void* refcon, txInteger refconSize)
-{
-	txJob* job = (txJob*)refcon;
-	txMachine* the = job->the;
-	fxBeginHost(the);
-	mxTry(the) {
-		mxPushUndefined();
-		mxPush(job->function);
-		mxCall();
-		mxPush(job->argument);
-		mxRunCount(1);
-		mxPop();
-	}
-	mxCatch(the) {
-		*((txSlot*)the->rejection) = mxException;
-		timer->interval = 0;
-	}
-	if (timer->interval == 0) {
-		fxAccess(the, &job->self);
-		*mxResult = the->scratch;
-		fxForget(the, &job->self);
-		fxSetHostData(the, mxResult, NULL);
-	}
-	fxEndHost(the);
-}
 
 void fxClearTimer(txMachine* the)
 {
@@ -105,26 +81,26 @@ void fxMarkTimer(txMachine* the, void* it, txMarkRoot markRoot)
 
 void fxSetTimer(txMachine* the, txNumber interval, txBoolean repeat)
 {
-	txJob _job;
+	c_timeval tv;
 	txJob* job;
-
-	txSharedTimer* timer;
-	if (c_isnan(interval) || (interval < 0))
-		interval = 0;
-	c_memset(&_job, 0, sizeof(txJob));
-	timer = fxScheduleSharedTimer(interval, (repeat) ? interval : 0, fx_callbackTimer, &_job, sizeof(txJob));
-	if (!timer)
-		fxAbort(the, XS_NOT_ENOUGH_MEMORY_EXIT);
-	job = (txJob*)&(timer->refcon[0]);
+	txJob** address = (txJob**)&(the->timerJobs);
+	while ((job = *address))
+		address = &(job->next);
+	job = *address = malloc(sizeof(txJob));
+	c_memset(job, 0, sizeof(txJob));
 	job->the = the;
+	c_gettimeofday(&tv, NULL);
+	if (repeat)
+		job->interval = interval;
+	job->when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0) + interval;
 	fxNewHostObject(the, NULL);
-		mxPull(job->self);
+    mxPull(job->self);
 	job->function = *mxArgv(0);
 	if (mxArgc > 2)
 		job->argument = *mxArgv(2);
 	else
 		job->argument = mxUndefined;
-	fxSetHostData(the, &job->self, timer);
+	fxSetHostData(the, &job->self, job);
 	fxSetHostHooks(the, &job->self, &gxTimerHooks);
 	fxRemember(the, &job->self);
 	fxAccess(the, &job->self);
