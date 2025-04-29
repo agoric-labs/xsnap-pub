@@ -83,23 +83,15 @@
 #endif
 #ifdef mxInstrument
 #define mxMachinePlatform \
-	int abortStatus; \
 	int promiseJobs; \
 	void* timerJobs; \
-	void* waiterCondition; \
-	void* waiterData; \
-	void* waiterLink; \
 	size_t allocationLimit; \
 	size_t allocatedSpace;
 #else
 #define mxMachinePlatform \
 	txSocket connection; \
-	int abortStatus; \
 	int promiseJobs; \
 	void* timerJobs; \
-	void* waiterCondition; \
-	void* waiterData; \
-	void* waiterLink; \
 	size_t allocationLimit; \
 	size_t allocatedSpace;
 #endif

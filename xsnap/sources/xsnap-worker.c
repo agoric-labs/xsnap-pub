@@ -357,14 +357,15 @@ int main(int argc, char* argv[])
 			return E_BAD_USAGE;
 		}
 	}
+
 	xsCreation _creation = {
-		32 * 1024 * 1024, /* initialChunkSize */
+		32 * 1024 * 1024,	/* initialChunkSize */
 		4 * 1024 * 1024,	/* incrementalChunkSize */
 		256 * 1024,			/* initialHeapCount */
 		128 * 1024,			/* incrementalHeapCount */
 		4096,				/* stackCount */
 		32 * 1024,			/* initialKeyCount */
-		8 * 1024,			/* incrementalKeyCount */
+		16 * 1024,			/* incrementalKeyCount */
 		1993,				/* nameModulo */
 		127,				/* symbolModulo */
 		parserBufferSize,	/* parserBufferSize */

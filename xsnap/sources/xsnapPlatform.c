@@ -330,111 +330,95 @@ struct sxSharedTimers {
 	txSharedTimer* first;
 	txMutex mutex;
 };
-static txSharedTimers gxSharedTimers;
 
 void fxInitializeSharedTimers()
 {
-	c_memset(&gxSharedTimers, 0, sizeof(txSharedTimers));
-	fxCreateMutex(&(gxSharedTimers.mutex));
 }
 
 void fxTerminateSharedTimers()
 {
-	fxDeleteMutex(&(gxSharedTimers.mutex));
-	if (gxSharedTimers.first != C_NULL) {
-		fprintf(stderr, "# shared timers mismatch!\n");
-		exit(1);
-	}
 }
 
 void fxRescheduleSharedTimer(txSharedTimer* timer, txNumber timeout, txNumber interval)
 {
-		fxLockMutex(&(gxSharedTimers.mutex));
-	timer->when = mxMonotonicNow() + timeout;
-	timer->interval = interval;
-		fxUnlockMutex(&(gxSharedTimers.mutex));
 }
 
 void* fxScheduleSharedTimer(txNumber timeout, txNumber interval, txSharedTimerCallback callback, void* refcon, txInteger refconSize)
 {
-	txSharedTimer* timer;
-	txSharedTimer** address;
-	txSharedTimer* link;
-	timer = c_calloc(1, sizeof(txSharedTimer) + refconSize - 1);
-	if (timer) {
-		timer->thread = mxCurrentThread();
-		timer->when = mxMonotonicNow() + timeout;
-		timer->interval = interval;
-		timer->callback = callback;
-		timer->refconSize = refconSize;
-		c_memcpy(timer->refcon, refcon, refconSize);
-
-		fxLockMutex(&(gxSharedTimers.mutex));
-		address = (txSharedTimer**)&(gxSharedTimers.first);
-		while ((link = *address))
-			address = &(link->next);
-		*address = timer;
-		fxUnlockMutex(&(gxSharedTimers.mutex));
-		}
-		return timer;
+  fprintf(stderr, "xsnap does not support shared timers\n");
+  c_exit(-1);
 }
 
 void fxUnscheduleSharedTimer(txSharedTimer* timer)
 {
-	txSharedTimer** address;
-	txSharedTimer* link;
-		fxLockMutex(&(gxSharedTimers.mutex));
-		address = (txSharedTimer**)&(gxSharedTimers.first);
-	while ((link = *address)) {
-		if (link == timer) {
-			*address = link->next;
-			c_free(timer);
-			break;
-		}
-		address = &(link->next);
-	}
-		fxUnlockMutex(&(gxSharedTimers.mutex));
+  fprintf(stderr, "xsnap does not support shared timers\n");
+  c_exit(-1);
 }
 
 void fxRunLoop(txMachine* the)
 {
-	txThread thread = mxCurrentThread();
+	c_timeval tv;
 	txNumber when;
-	txInteger count;
-	txSharedTimer* timer;
+	txJob* job;
+	txJob** address;
 	for (;;) {
+		fxEndJob(the);
 		while (the->promiseJobs) {
 			the->promiseJobs = 0;
 			fxRunPromiseJobs(the);
 		}
-    // TODO reason thru this removal projected from Moddable version
-		// fxEndJob(the);
+		fxEndJob(the);
 		if (the->promiseJobs) {
 			continue;
 		}
-		when = mxMonotonicNow();
-		fxLockMutex(&(gxSharedTimers.mutex));
-		count = 0;
-		timer = gxSharedTimers.first;
-		while (timer) {
-			if (timer->thread == thread) {
-				count++;
-				if (timer->when <= when)
-					break; // one timer at time to run promise jobs queued by the timer in the same "tick"
-			}
-			timer = timer->next;
-		}
-		fxUnlockMutex(&(gxSharedTimers.mutex));
-		if (timer) {
-			(timer->callback)(timer, timer->refcon, timer->refconSize);
-			if (timer->interval == 0)
-				fxUnscheduleSharedTimer(timer);
-			else
-				timer->when += timer->interval;
-			continue;
-		}
-		if (count == 0)
+		c_gettimeofday(&tv, NULL);
+		when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
+		address = (txJob**)&(the->timerJobs);
+		if (!*address)
 			break;
+		while ((job = *address)) {
+			txMachine* the = job->the;
+			if (the) {
+				if (job->when <= when) {
+					fxBeginHost(the);
+					mxTry(the) {
+						mxPushUndefined();
+						mxPush(job->function);
+						mxCall();
+						mxPush(job->argument);
+						mxRunCount(1);
+						mxPop();
+						if (job->the) {
+							if (job->interval) {
+								job->when += job->interval;
+							}
+							else {
+								fxAccess(the, &job->self);
+								*mxResult = the->scratch;
+								fxForget(the, &job->self);
+								fxSetHostData(the, mxResult, NULL);
+								job->the = NULL;
+							}
+						}
+					}
+					mxCatch(the) {
+						fxAccess(the, &job->self);
+						*mxResult = the->scratch;
+						fxForget(the, &job->self);
+						fxSetHostData(the, mxResult, NULL);
+						job->the = NULL;
+						fxAbort(the, XS_UNHANDLED_EXCEPTION_EXIT);
+					}
+					fxEndHost(the);
+					break; // to run promise jobs queued by the timer in the same "tick"
+				}
+				address = &(job->next);
+			}
+			else {
+				*address = job->next;
+				c_free(job);
+			}
+		}
 	}
 	fxCheckUnhandledRejections(the, 1);
 }
