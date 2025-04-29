@@ -905,9 +905,10 @@ static int fxWriteOkay(FILE* outStream, uint64_t meterIndex, xsMachine *the, cha
 					"\1" // separate meter info from result
 					);
 	char numeral64[] = "12345678901234567890"; // big enough for 64bit numeral
-	char prefix[8 + sizeof fmt + 8 * sizeof numeral64 + sizeof timestampBuffer];
+	// The final +1 accounts for a null terminator.
+	char prefix[8 + sizeof fmt + 8 * sizeof numeral64 + sizeof timestampBuffer + 1];
 	// Prepend the meter usage to the reply.
-	snprintf(prefix, sizeof(prefix) - 1, fmt,
+	snprintf(prefix, sizeof(prefix), fmt,
 			 fxGetCurrentHeapCount(the),
 			 meterIndex, the->allocatedSpace, tsbuf);
 	return fxWriteNetString(outStream, prefix, buf, length);

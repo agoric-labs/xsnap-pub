@@ -55,8 +55,7 @@
 #endif
 #include <string.h>
 #include <time.h>
-// XXX present in xst.h but absent on my machine. system dependency? need linkage in Makefile?
-//#include <fdlibm.h>
+#include <fdlibm.h>
 #if mxWindows
 	#include <winsock2.h>
 	typedef SOCKET txSocket;

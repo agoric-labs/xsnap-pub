@@ -7,6 +7,10 @@ ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
+# This is a mechanism that allows Agoric SDK to force a rebuild on
+# xsnap build configuration changes.
+EXTRA_DEPS =
+
 # MODDABLE = $(CURDIR)/../../moddable
 BUILD_DIR = $(CURDIR)/../../build
 TLS_DIR = $(CURDIR)/../../sources
@@ -36,6 +40,7 @@ C_OPTIONS = \
 	-DXSNAP_TEST_RECORD=0 \
 	-DmxBoundsCheck=1 \
 	-DmxDebug=1 \
+	-UmxInstrument \
 	-I$(INC_DIR) \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
@@ -181,6 +186,8 @@ $(OBJECTS): $(SRC_DIR)/xsScript.h
 $(OBJECTS): $(XS_TLS_DIR)/fdlibm/math_private.h
 $(OBJECTS): $(SRC_DIR)/xsSnapshot.h
 $(OBJECTS): $(INC_DIR)/xs.h
+$(OBJECTS): $(EXTRA_DEPS)
+
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
 	$(CC) $< $(C_OPTIONS) -c -o $@
