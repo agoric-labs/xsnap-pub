@@ -35,6 +35,7 @@ C_OPTIONS = \
 	-DXSNAP_VERSION=\"$(XSNAP_VERSION)\" \
 	-DXSNAP_TEST_RECORD=0 \
 	-DmxBoundsCheck=1 \
+	-DmxDebug=1 \
 	-I$(INC_DIR) \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
@@ -45,7 +46,7 @@ ifneq ("x$(SDKROOT)", "x")
 	C_OPTIONS += -isysroot $(SDKROOT)
 endif
 ifeq ($(GOAL),debug)
-	C_OPTIONS += -DmxDebug=1 -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
+	C_OPTIONS += -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter
 else
 	C_OPTIONS += -O3
 endif
