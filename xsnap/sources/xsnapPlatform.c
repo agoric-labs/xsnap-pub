@@ -351,13 +351,13 @@ void fxRescheduleSharedTimer(txSharedTimer* timer, txNumber timeout, txNumber in
 void* fxScheduleSharedTimer(txNumber timeout, txNumber interval, txSharedTimerCallback callback, void* refcon, txInteger refconSize)
 {
   fprintf(stderr, "xsnap does not support shared timers\n");
-  c_exit(-1);
+  //c_exit(-1);
 }
 
 void fxUnscheduleSharedTimer(txSharedTimer* timer)
 {
   fprintf(stderr, "xsnap does not support shared timers\n");
-  c_exit(-1);
+  //c_exit(-1);
 }
 
 void fxRunLoop(txMachine* the)
