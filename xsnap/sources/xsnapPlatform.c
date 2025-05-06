@@ -2,6 +2,10 @@
 #include "xsScript.h"
 #include "xsSnapshot.h"
 
+#if mxMacOSX || mxLinux
+  #include <dlfcn.h>
+#endif
+
 #ifndef mxReserveChunkSize
 	#define mxReserveChunkSize 1024 * 1024 * 1024
 #endif
@@ -858,9 +862,6 @@ txSize fxGetCurrentHeapCount(txMachine* the)
 }
 
 
-#if mxMacOSX || mxLinux
-#include <dlfcn.h>
-#endif
 extern txCallback fxUnprojectCallback(txMachine* the, txSnapshot* snapshot, txCallback callback);
 
 extern void fxDumpSnapshot(txMachine* the, txSnapshot* snapshot);
