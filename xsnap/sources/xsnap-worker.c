@@ -1,4 +1,5 @@
 #include "xsnap.h"
+#include <inttypes.h>
 
 // XS heap-snapshot contents depend upon the availability of
 // __has_builtin (e.g. xsRun.c mxCase(XS_CODE_MULTIPLY) , around line
@@ -804,7 +805,7 @@ void xs_print(xsMachine* the)
 	xsIntegerValue c = xsToInteger(xsArgc), i;
 #if mxMetering
 	if (gxMeteringPrint)
-		fprintf(stdout, "[%llu] ", xsGetCurrentMeter(the));
+		fprintf(stdout, "[%" PRIu64 "] ", xsGetCurrentMeter(the));
 #endif
 	for (i = 0; i < c; i++) {
 		if (i)
