@@ -359,7 +359,6 @@ void fxUnscheduleSharedTimer(txSharedTimer* timer)
 {
   fprintf(stderr, "xsnap does not support shared timers\n");
   //c_exit(-1);
-  return C_NULL;
 }
 
 void fxRunLoop(txMachine* the)
