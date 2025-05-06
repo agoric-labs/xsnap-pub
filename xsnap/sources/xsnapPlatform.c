@@ -1610,8 +1610,8 @@ void fxDumpSlot(txDumper* dumper, txSlot* slot)
 		fprintf(dumper->file, "bufferInfo = { .length = %d, maxLength = %d }", slot->value.bufferInfo.length, slot->value.bufferInfo.maxLength);
 	} break;
 	case XS_CALLBACK_KIND: {
+#if mxMacOSX
 		txCallback callback = fxUnprojectCallback(dumper->machine, dumper->snapshot, slot->value.callback.address);
-#if mxMacOSX || mxLinux
 		Dl_info info;
 		if (dladdr(callback, &info) && info.dli_sname)
 			fprintf(dumper->file, "callback = %s",info.dli_sname);
