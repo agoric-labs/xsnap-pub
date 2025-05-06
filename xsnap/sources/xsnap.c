@@ -286,37 +286,6 @@ int main(int argc, char* argv[])
 					if (argi == argw)
 						continue;
 					if (option == 1) {
-						// TODO reconcile with xnsap-worker.c, which has a try/catch
-						// {
-						//	xsVars(3);
-						//	xsTry {
-						//		if (command == '?') {
-						//			#if XSNAP_TEST_RECORD
-						//				fxTestRecord(mxTestRecordJSON | mxTestRecordParam, nsbuf + 1, nslen - 1);
-						//			#endif
-						//			// TODO: can we avoid a copy?
-						//			xsVar(0) = xsArrayBuffer(nsbuf + 1, nslen - 1);
-						//			xsVar(1) = xsCall1(xsGlobal, xsID("handleCommand"), xsVar(0));
-						//		} else {
-						//			#if XSNAP_TEST_RECORD
-						//				fxTestRecord(mxTestRecordJS | mxTestRecordParam, nsbuf + 1, nslen - 1);
-						//			#endif
-						//			// TODO reconcile with xsnap.c -e
-						//			// xsResult = xsString(argv[argi]);
-						//			// xsCall1(xsGlobal, xsID("eval"), xsResult);
-						//			xsVar(0) = xsStringBuffer(nsbuf + 1, nslen - 1);
-						//			xsVar(1) = xsCall1(xsGlobal, xsID("eval"), xsVar(0));
-						//		}
-						//	}
-						//	xsCatch {
-						//		if (xsTypeOf(xsException) != xsUndefinedType) {
-						//			// fprintf(stderr, "%c: %s\n", command, xsToString(xsException));
-						//			error = E_UNHANDLED_EXCEPTION;
-						//			xsVar(1) = xsException;
-						//			xsException = xsUndefined;
-						//		}
-						//	}
-						// }
 						xsResult = xsString(argv[argi]);
 						xsCall1(xsGlobal, xsID("eval"), xsResult);
 					}
@@ -747,7 +716,3 @@ void xs_setTimeout(xsMachine* the)
 {
 	xsSetTimer(xsToNumber(xsArg(1)), 0);
 }
-
-
-
-
