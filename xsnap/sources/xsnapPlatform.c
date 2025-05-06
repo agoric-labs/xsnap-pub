@@ -1,6 +1,7 @@
 #include "xsAll.h"
 #include "xsScript.h"
 #include "xsSnapshot.h"
+#include "xsnapPlatform.h"
 
 #if mxMacOSX || mxLinux
   #include <dlfcn.h>
