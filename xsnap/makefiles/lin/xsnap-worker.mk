@@ -7,6 +7,8 @@ ifneq ($(VERBOSE),1)
 MAKEFLAGS += --silent
 endif
 
+# This is a mechanism that allows Agoric SDK to force a rebuild on
+# xsnap build configuration changes.
 EXTRA_DEPS =
 
 # MODDABLE = $(CURDIR)/../../moddable
@@ -17,6 +19,7 @@ TLS_DIR = $(CURDIR)/../../sources
 # TLS_DIR = ../../sources
 
 XS_DIR = $(MODDABLE)/xs
+XS_TLS_DIR = $(XS_DIR)/tools
 
 BIN_DIR = $(BUILD_DIR)/bin/lin/$(GOAL)
 INC_DIR = $(XS_DIR)/includes
@@ -30,23 +33,14 @@ C_OPTIONS = \
 	-DXSPLATFORM=\"xsnapPlatform.h\" \
 	-DXSNAP_VERSION=\"$(XSNAP_VERSION)\" \
 	-DXSNAP_TEST_RECORD=0 \
-	-DmxLockdown=1 \
-	-DmxMetering=1 \
+	-DmxBoundsCheck=1 \
 	-DmxDebug=1 \
 	-UmxInstrument \
-	-DmxNoConsole=1 \
-	-DmxBoundsCheck=1 \
-	-DmxParse=1 \
-	-DmxRun=1 \
-	-DmxSloppy=1 \
-	-DmxSnapshot=1 \
-	-DmxRegExpUnicodePropertyEscapes=1 \
-	-DmxStringNormalize=1 \
-	-DmxMinusZero=1 \
 	-I$(INC_DIR) \
 	-I$(PLT_DIR) \
 	-I$(SRC_DIR) \
 	-I$(TLS_DIR) \
+	-I$(XS_TLS_DIR)/fdlibm \
 	-I$(TMP_DIR)
 C_OPTIONS += \
 	-Wno-misleading-indentation \
@@ -113,13 +107,40 @@ OBJECTS = \
 	$(TMP_DIR)/xsdtoa.o \
 	$(TMP_DIR)/xsre.o \
 	$(TMP_DIR)/xsmc.o \
+	$(TMP_DIR)/e_acos.o \
+	$(TMP_DIR)/e_acosh.o \
+	$(TMP_DIR)/e_asin.o \
+	$(TMP_DIR)/e_atan2.o \
+	$(TMP_DIR)/e_atanh.o \
+	$(TMP_DIR)/e_cosh.o \
+	$(TMP_DIR)/e_exp.o \
+	$(TMP_DIR)/e_hypot.o \
+	$(TMP_DIR)/e_log.o \
+	$(TMP_DIR)/e_log10.o \
+	$(TMP_DIR)/e_pow.o \
+	$(TMP_DIR)/e_rem_pio2.o \
+	$(TMP_DIR)/e_sinh.o \
+	$(TMP_DIR)/k_cos.o \
+	$(TMP_DIR)/k_exp.o \
+	$(TMP_DIR)/k_rem_pio2.o \
+	$(TMP_DIR)/k_sin.o \
+	$(TMP_DIR)/k_tan.o \
+	$(TMP_DIR)/s_asinh.o \
+	$(TMP_DIR)/s_atan.o \
+	$(TMP_DIR)/s_cos.o \
+	$(TMP_DIR)/s_expm1.o \
+	$(TMP_DIR)/s_log1p.o \
+	$(TMP_DIR)/s_scalbn.o \
+	$(TMP_DIR)/s_sin.o \
+	$(TMP_DIR)/s_tan.o \
+	$(TMP_DIR)/s_tanh.o \
 	$(TMP_DIR)/textdecoder.o \
 	$(TMP_DIR)/textencoder.o \
 	$(TMP_DIR)/modBase64.o \
 	$(TMP_DIR)/xsnapPlatform.o \
 	$(TMP_DIR)/xsnap-worker.o
 
-VPATH += $(SRC_DIR) $(TLS_DIR)
+VPATH += $(SRC_DIR) $(TLS_DIR) $(XS_TLS_DIR)/fdlibm
 VPATH += $(MODDABLE)/modules/data/text/decoder
 VPATH += $(MODDABLE)/modules/data/text/encoder
 VPATH += $(MODDABLE)/modules/data/base64
@@ -142,9 +163,11 @@ $(OBJECTS): $(PLT_DIR)/xsPlatform.h
 $(OBJECTS): $(SRC_DIR)/xsCommon.h
 $(OBJECTS): $(SRC_DIR)/xsAll.h
 $(OBJECTS): $(SRC_DIR)/xsScript.h
+$(OBJECTS): $(XS_TLS_DIR)/fdlibm/math_private.h
 $(OBJECTS): $(SRC_DIR)/xsSnapshot.h
 $(OBJECTS): $(INC_DIR)/xs.h
 $(OBJECTS): $(EXTRA_DEPS)
+
 $(TMP_DIR)/%.o: %.c
 	@echo "#" $(NAME) $(GOAL) ": cc" $(<F)
 	$(CC) $< $(C_OPTIONS) -c -o $@

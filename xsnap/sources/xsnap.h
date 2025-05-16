@@ -19,6 +19,7 @@ struct xsSnapshotRecord {
 	void* firstSlot;
 	int slotSize;
 	void* slots;
+	int (*patch)(xsMachine*, int version);
 };
 
 #define xsInitializeSharedCluster() \
@@ -80,6 +81,9 @@ struct xsSnapshotRecord {
 	fxRunProgramFile(the, _PATH)
 #define xsRunLoop(_THE) \
 	fxRunLoop(_THE)
+#define xsRunProgramBuffer(_BUFFER,_SIZE) \
+	(fxRunProgramBuffer(the, _BUFFER, _SIZE), \
+	fxPop())
 
 #define xsClearTimer() \
 	fxClearTimer(the)
@@ -104,20 +108,22 @@ extern void fxInitializeSharedCluster();
 extern void fxTerminateSharedCluster();
 
 #ifdef mxMetering
-mxImport void fxBeginMetering(xsMachine* the, xsBooleanValue (*callback)(xsMachine*, xsUnsignedValue), xsUnsignedValue interval);
+mxImport void fxBeginMetering(xsMachine* the, xsBooleanValue (*callback)(xsMachine*, uint64_t), uint64_t interval);
 mxImport void fxEndMetering(xsMachine* the);
-mxImport void fxMeterHostFunction(xsMachine* the, xsUnsignedValue count);
+mxImport void fxMeterHostFunction(xsMachine* the, uint64_t count);
 mxImport void fxPatchHostFunction(xsMachine* the, xsCallback patch);
-mxImport xsUnsignedValue fxGetCurrentMeter(xsMachine* the);
-mxImport void fxSetCurrentMeter(xsMachine* the, xsUnsignedValue value);
+mxImport uint64_t fxGetCurrentMeter(xsMachine* the);
+mxImport void fxSetCurrentMeter(xsMachine* the, uint64_t value);
 #endif
 
 mxImport xsMachine* fxReadSnapshot(xsSnapshot* snapshot, xsStringValue theName, void* theContext);
+mxImport int fxUseSnapshot(xsMachine* the, xsSnapshot* snapshot);
 mxImport int fxWriteSnapshot(xsMachine* the, xsSnapshot* snapshot);
 
 mxImport void fxRunDebugger(xsMachine* the);
 mxImport void fxRunModuleFile(xsMachine* the, xsStringValue path);
 mxImport void fxRunProgramFile(xsMachine* the, xsStringValue path);
+mxImport void fxRunProgramBuffer(xsMachine* the, xsStringValue buffer, xsIntegerValue size);
 mxImport void fxRunLoop(xsMachine* the);
 
 mxImport void fxClearTimer(xsMachine* the);
@@ -134,6 +140,15 @@ mxImport void fx_lockdown(xsMachine* the);
 mxImport void fx_harden(xsMachine* the);
 mxImport void fx_petrify(xsMachine* the);
 mxImport void fx_mutabilities(xsMachine* the);
+mxImport void fx_unicodeCompare(xsMachine* the);
+
+typedef void (*txSharedTimerCallback)(txSharedTimer* timer, void *refcon, int refconSize);
+
+extern void fxInitializeSharedTimers();
+extern void fxTerminateSharedTimers();
+extern void fxRescheduleSharedTimer(txSharedTimer* timer, double timeout, double interval);
+extern void* fxScheduleSharedTimer(double timeout, double interval, txSharedTimerCallback callback, void* refcon, int refconSize);
+extern void fxUnscheduleSharedTimer(txSharedTimer* timer);
 
 #ifdef __cplusplus
 }

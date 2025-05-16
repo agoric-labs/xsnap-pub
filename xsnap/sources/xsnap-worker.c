@@ -1,4 +1,5 @@
 #include "xsnap.h"
+#include <inttypes.h>
 
 // XS heap-snapshot contents depend upon the availability of
 // __has_builtin (e.g. xsRun.c mxCase(XS_CODE_MULTIPLY) , around line
@@ -55,7 +56,7 @@ static void xs_setImmediate(xsMachine* the);
 
 static int fxReadNetString(FILE *inStream, char** dest, size_t* len);
 static char* fxReadNetStringError(int code);
-static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *the, char* buf, size_t len);
+static int fxWriteOkay(FILE* outStream, uint64_t meterIndex, xsMachine *the, char* buf, size_t len);
 static int fxWriteNetString(FILE* outStream, char* prefix, char* buf, size_t len);
 static char* fxWriteNetStringError(int code);
 static void fxSigPipeHandler(int sigNum);
@@ -154,9 +155,9 @@ static xsIntegerValue xsnapInstrumentValues[xsnapInstrumentCount] = {
 	#define xsEndCrank(_THE) 0
 #endif
 
-static xsUnsignedValue gxCrankMeteringLimit = 0;
-static xsUnsignedValue gxCurrentMeter = 0;
-xsBooleanValue fxMeteringCallback(xsMachine* the, xsUnsignedValue index)
+static uint64_t gxCrankMeteringLimit = 0;
+static uint64_t gxCurrentMeter = 0;
+xsBooleanValue fxMeteringCallback(xsMachine* the, uint64_t index)
 {
 	if (gxCurrentMeter > 0 && index > gxCurrentMeter) {
 		// Just throw right out of the main loop and exit.
@@ -359,14 +360,15 @@ int main(int argc, char* argv[])
 			return E_BAD_USAGE;
 		}
 	}
+
 	xsCreation _creation = {
 		32 * 1024 * 1024,	/* initialChunkSize */
 		4 * 1024 * 1024,	/* incrementalChunkSize */
 		256 * 1024,			/* initialHeapCount */
 		128 * 1024,			/* incrementalHeapCount */
 		4096,				/* stackCount */
-		32000, 				/* initialKeyCount */
-		8000,				/* incrementalKeyCount */
+		32 * 1024,			/* initialKeyCount */
+		16 * 1024,			/* incrementalKeyCount */
 		1993,				/* nameModulo */
 		127,				/* symbolModulo */
 		parserBufferSize,	/* parserBufferSize */
@@ -396,8 +398,9 @@ int main(int argc, char* argv[])
 			machine = xsReadSnapshot(&snapshot, "xsnap", NULL);
 			fclose(snapshot.stream);
 		}
-		else
+		else {
 			snapshot.error = errno;
+		}
 		if (snapshot.error) {
 			fprintf(stderr, "cannot read snapshot %s: %s\n", argv[argr], strerror(snapshot.error));
 			return E_IO_ERROR;
@@ -423,7 +426,9 @@ int main(int argc, char* argv[])
 #endif
 	xsBeginMetering(machine, fxMeteringCallback, interval);
 	{
+		#if mxInstrument
 		fd_set rfds;
+		#endif
 		char done = 0;
 		while (!done) {
 			#if mxInstrument
@@ -445,7 +450,7 @@ int main(int argc, char* argv[])
 			// By default, use the infinite meter.
 			gxCurrentMeter = 0;
 
-			xsUnsignedValue meterIndex = 0;
+			uint64_t meterIndex = 0;
 			char* nsbuf;
 			size_t nslen;
 			resetTimestamps();
@@ -610,11 +615,12 @@ int main(int argc, char* argv[])
 					snapshot.stream = NULL;
 					fclose(stream.file);
 				}
-				else
+				else {
 					snapshot.error = errno;
+				}
 				if (snapshot.error) {
-					fprintf(stderr, "cannot write snapshot %s: %s\n",
-							path, strerror(snapshot.error));
+					fprintf(stderr, "cannot write snapshot %s: (code %d) %s\n",
+							path, snapshot.error, strerror(snapshot.error));
 					c_exit(E_IO_ERROR);
 				}
 				if (snapshot.error == 0) {
@@ -626,6 +632,20 @@ int main(int argc, char* argv[])
 						fprintf(stderr, "%s\n", fxWriteNetStringError(writeError));
 						c_exit(E_IO_ERROR);
 					}
+					// TODO reason through this follow-up from moddable's fork between 3.9.2 and 5.5.0
+					//path = nsbuf + 1;
+					//snapshot.stream = fopen(path, "rb");
+					//if (snapshot.stream) {
+					//	fxUseSnapshot(machine, &snapshot);
+					//	fclose(snapshot.stream);
+					//}
+					//else
+					//	snapshot.error = errno;
+					//if (snapshot.error) {
+					//	fprintf(stderr, "cannot restore snapshot %s: %s\n",
+					//			path, strerror(snapshot.error));
+					//	c_exit(E_IO_ERROR);
+					//}
 				} else {
 					// TODO: dynamically build error message including Exception message.
 					int writeError = fxWriteNetString(toParent, "!", "", 0);
@@ -667,8 +687,8 @@ int main(int argc, char* argv[])
 		xsEndHost(machine);
 	}
 	xsEndMetering(machine);
-	if (machine->abortStatus) {
-		switch (machine->abortStatus) {
+	if (machine->exitStatus) {
+		switch (machine->exitStatus) {
 		case xsNotEnoughMemoryExit:
 			error = E_NOT_ENOUGH_MEMORY;
 			break;
@@ -698,27 +718,27 @@ void xsBuildAgent(xsMachine* machine)
 {
 	xsBeginHost(machine);
 	xsVars(1);
-	
-// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-// 	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
+
+//	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+//	xsDefine(xsGlobal, xsID("clearImmediate"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_setImmediate, 1);
 	xsDefine(xsGlobal, xsID("setImmediate"), xsResult, xsDontEnum);
-	
-// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-// 	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(xs_setInterval, 1);
-// 	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
-	
-// 	xsResult = xsNewHostFunction(xs_clearTimer, 1);
-// 	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
-// 	xsResult = xsNewHostFunction(xs_setTimeout, 1);
-// 	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
-	
+
+//	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+//	xsDefine(xsGlobal, xsID("clearInterval"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(xs_setInterval, 1);
+//	xsDefine(xsGlobal, xsID("setInterval"), xsResult, xsDontEnum);
+
+//	xsResult = xsNewHostFunction(xs_clearTimer, 1);
+//	xsDefine(xsGlobal, xsID("clearTimeout"), xsResult, xsDontEnum);
+//	xsResult = xsNewHostFunction(xs_setTimeout, 1);
+//	xsDefine(xsGlobal, xsID("setTimeout"), xsResult, xsDontEnum);
+
 	xsResult = xsNewHostFunction(xs_gc, 1);
 	xsDefine(xsGlobal, xsID("gc"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_print, 1);
 	xsDefine(xsGlobal, xsID("print"), xsResult, xsDontEnum);
-	
+
 	xsResult = xsNewHostFunction(xs_issueCommand, 1);
 	xsDefine(xsGlobal, xsID("issueCommand"), xsResult, xsDontEnum);
 
@@ -726,7 +746,7 @@ void xsBuildAgent(xsMachine* machine)
 	xsVar(0) = xsNewHostFunction(xs_performance_now, 0);
 	xsDefine(xsResult, xsID("now"), xsVar(0), xsDontEnum);
 	xsDefine(xsGlobal, xsID("performance"), xsResult, xsDontEnum);
-	
+
 	xsResult = xsNewHostFunction(xs_currentMeterLimit, 1);
 	xsDefine(xsGlobal, xsID("currentMeterLimit"), xsResult, xsDontEnum);
 	xsResult = xsNewHostFunction(xs_resetMeter, 1);
@@ -736,13 +756,13 @@ void xsBuildAgent(xsMachine* machine)
 	modInstallTextEncoder(the);
 	modInstallBase64(the);
 
- 	xsResult = xsNewHostFunction(fx_harden, 1);
- 	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
+	xsResult = xsNewHostFunction(fx_harden, 1);
+	xsDefine(xsGlobal, xsID("harden"), xsResult, xsDontEnum);
 
-// 	xsResult = xsNewObject();
-// 	xsVar(0) = xsNewHostFunction(fx_print, 0);
-// 	xsDefine(xsResult, xsID("log"), xsVar(0), xsDontEnum);
-// 	xsDefine(xsGlobal, xsID("console"), xsResult, xsDontEnum);
+//	xsResult = xsNewObject();
+//	xsVar(0) = xsNewHostFunction(fx_print, 0);
+//	xsDefine(xsResult, xsID("log"), xsVar(0), xsDontEnum);
+//	xsDefine(xsGlobal, xsID("console"), xsResult, xsDontEnum);
 
 	xsEndHost(machine);
 }
@@ -792,7 +812,7 @@ void xs_print(xsMachine* the)
 	xsIntegerValue c = xsToInteger(xsArgc), i;
 #if mxMetering
 	if (gxMeteringPrint)
-		fprintf(stdout, "[%u] ", xsGetCurrentMeter(the));
+		fprintf(stdout, "[%" PRIu64 "] ", xsGetCurrentMeter(the));
 #endif
 	for (i = 0; i < c; i++) {
 		if (i)
@@ -876,7 +896,7 @@ static char* fxReadNetStringError(int code)
 	}
 }
 
-static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *the, char* buf, size_t length)
+static int fxWriteOkay(FILE* outStream, uint64_t meterIndex, xsMachine *the, char* buf, size_t length)
 {
 	recordTimestamp(); // before sending delivery-result to parent
 	char *tsbuf = renderTimestamps();
@@ -885,15 +905,16 @@ static int fxWriteOkay(FILE* outStream, xsUnsignedValue meterIndex, xsMachine *t
 		tsbuf = "[]";
 	}
 	char fmt[] = ("." // OK
-				  "{"
-				  "\"currentHeapCount\":%u,"
-				  "\"compute\":%u,"
-				  "\"allocate\":%u,"
-				  "\"timestamps\":%s}"
-				  "\1" // separate meter info from result
-				  );
+					"{"
+					"\"currentHeapCount\":%u,"
+					"\"compute\":%u,"
+					"\"allocate\":%u,"
+					"\"timestamps\":%s}"
+					"\1" // separate meter info from result
+					);
 	char numeral64[] = "12345678901234567890"; // big enough for 64bit numeral
-	char prefix[8 + sizeof fmt + 8 * sizeof numeral64 + sizeof timestampBuffer];
+	// The final +1 accounts for a null terminator.
+	char prefix[8 + sizeof fmt + 8 * sizeof numeral64 + sizeof timestampBuffer + 1];
 	// Prepend the meter usage to the reply.
 	snprintf(prefix, sizeof(prefix), fmt,
 			 fxGetCurrentHeapCount(the),
@@ -937,7 +958,7 @@ static void xs_issueCommand(xsMachine *the)
 
 	size_t length = xsGetArrayBufferLength(xsArg(0));
 	char* buf = xsToArrayBuffer(xsArg(0));
-  
+
 	recordTimestamp(); // before sending command to parent
 
 	int writeError = fxWriteNetString(toParent, "?", buf, length);
