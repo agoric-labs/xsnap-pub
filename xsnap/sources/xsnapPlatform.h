@@ -121,7 +121,7 @@ extern void fxUnscheduleSharedTimer(txSharedTimer* timer);
 #define mxCESU8 1
 #define mxCanonicalNaN 1
 #define mxHostFunctionPrimitive 0
-#define mxKeysGarbageCollection 0
+#define mxKeysGarbageCollection 1
 #define mxLockdown 1
 #define mxSnapshot 1
 #define mxMetering 1
