@@ -127,7 +127,7 @@ extern void fxUnscheduleSharedTimer(txSharedTimer* timer);
 #define mxMetering 1
 
 #define mxAliasInstance 0
-#define mxExplicitResourceManagement 1
+#define mxExplicitResourceManagement 0
 #define mxImmutableArrayBuffers 1
 #define mxModuleStuff 1
 
